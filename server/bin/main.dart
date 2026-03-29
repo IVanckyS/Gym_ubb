@@ -8,6 +8,7 @@ import '../lib/src/database/redis_client.dart';
 import '../lib/src/handlers/auth_handler.dart';
 import '../lib/src/handlers/users_handler.dart';
 import '../lib/src/handlers/careers_handler.dart';
+import '../lib/src/handlers/exercises_handler.dart';
 import '../lib/src/middleware/auth_middleware.dart';
 import '../lib/src/middleware/cors_middleware.dart';
 import '../lib/src/middleware/security_headers_middleware.dart';
@@ -40,9 +41,9 @@ Future<void> main() async {
 
   router.mount('/api/v1/users', usersHandler.call);
   router.mount('/api/v1/careers', careersHandler.call);
+  router.mount('/api/v1/exercises', exercisesHandler.call);
 
   // Los demás módulos se montan en las siguientes fases:
-  // router.mount('/api/v1/exercises', exercisesHandler.call);
   // router.mount('/api/v1/routines',  routinesHandler.call);
   // ...
 

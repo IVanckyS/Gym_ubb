@@ -202,6 +202,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 return Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: AppColors.accentSecondary.withValues(alpha: 0.12),

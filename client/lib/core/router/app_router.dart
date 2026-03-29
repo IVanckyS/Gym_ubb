@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/admin/presentation/users_screen.dart';
 import '../../features/admin/presentation/careers_screen.dart';
+import '../../features/exercises/presentation/exercises_screen.dart';
+import '../../features/exercises/presentation/exercise_detail_screen.dart';
 import '../../shared/providers/auth_provider.dart';
 
 // Placeholder para la pantalla home (se implementa en el siguiente módulo)
@@ -31,6 +33,14 @@ class HomeScreen extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 32),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ElevatedButton.icon(
+                onPressed: () => context.go('/exercises'),
+                icon: const Icon(Icons.fitness_center),
+                label: const Text('Ejercicios'),
+              ),
+            ),
             if (isAdmin) ...[
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -101,6 +111,15 @@ GoRouter buildRouter(AuthProvider auth) => GoRouter(
         GoRoute(
           path: '/admin/careers',
           builder: (context, state) => const CareersScreen(),
+        ),
+        GoRoute(
+          path: '/exercises',
+          builder: (context, state) => const ExercisesScreen(),
+        ),
+        GoRoute(
+          path: '/exercises/:id',
+          builder: (context, state) =>
+              ExerciseDetailScreen(id: state.pathParameters['id']!),
         ),
       ],
     );

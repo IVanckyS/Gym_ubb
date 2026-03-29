@@ -1,0 +1,16 @@
+{
+  "folders": [
+    {
+      "name": "server (Dart)",
+      "path": "server"
+    },
+    {
+      "name": "client (Flutter)",
+      "path": "client"
+    },
+    {
+      "name": "raíz",
+      "path": "."
+    }
+  ]
+}

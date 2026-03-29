@@ -410,6 +410,128 @@ const List<Map<String, dynamic>> _devExercises = [
     'default_rest_seconds': 45,
   },
 
+  // ── Hombros (adicional) ───────────────────────────────────────────────────
+  {
+    'name': 'Face Pull',
+    'muscle_group': 'hombros',
+    'difficulty': 'principiante',
+    'description':
+        'Ejercicio preventivo para la salud del hombro. Trabaja la parte posterior del deltoides y los rotadores externos.',
+    'muscles': ['Deltoides posterior', 'Rotadores externos', 'Romboides'],
+    'instructions': [
+      'En polea alta con cuerda, agarra los extremos.',
+      'Tira de la cuerda hacia la cara separando los extremos.',
+      'Los codos deben quedar por encima de los hombros.',
+    ],
+    'safety_notes':
+        'Usa peso moderado. Ejercicio de salud articular, no de fuerza máxima.',
+    'variations': ['Face pull con banda', 'Remo al cuello', 'YWT en banco inclinado'],
+    'video_url': null,
+    'equipment': 'Polea con cuerda',
+    'default_sets': 3,
+    'default_reps': '15-20',
+    'default_rest_seconds': 45,
+  },
+
+  // ── Espalda (adicional) ───────────────────────────────────────────────────
+  {
+    'name': 'Jalón al Pecho',
+    'muscle_group': 'espalda',
+    'difficulty': 'principiante',
+    'description':
+        'Alternativa a las dominadas en máquina de polea. Trabaja el dorsal ancho y permite ajustar el peso.',
+    'muscles': ['Dorsal ancho', 'Bíceps', 'Romboides'],
+    'instructions': [
+      'Siéntate en la máquina y agarra la barra con agarre amplio.',
+      'Inclínate ligeramente hacia atrás.',
+      'Tira de la barra hacia el pecho superior.',
+      'Vuelve arriba controladamente.',
+    ],
+    'safety_notes':
+        'No jalones detrás de la nuca: aumenta el riesgo de lesión cervical.',
+    'variations': [
+      'Jalón agarre neutro',
+      'Jalón agarre cerrado',
+      'Jalón con mancuernas en polea',
+    ],
+    'video_url': null,
+    'equipment': 'Máquina de polea',
+    'default_sets': 3,
+    'default_reps': '10-12',
+    'default_rest_seconds': 75,
+  },
+
+  // ── Piernas (adicionales) ─────────────────────────────────────────────────
+  {
+    'name': 'Sentadilla Búlgara',
+    'muscle_group': 'piernas',
+    'difficulty': 'avanzado',
+    'description':
+        'Sentadilla unilateral con pie trasero elevado. Gran desafío de equilibrio y máxima activación de cuádriceps y glúteos.',
+    'muscles': ['Cuádriceps', 'Glúteos', 'Isquiotibiales', 'Core'],
+    'instructions': [
+      'Coloca el pie trasero elevado en un banco.',
+      'El pie delantero avanzado un paso.',
+      'Baja el cuerpo flexionando la rodilla delantera.',
+      'Empuja para subir desde el talón delantero.',
+    ],
+    'safety_notes':
+        'Empieza sin peso hasta dominar el equilibrio. La rodilla delantera no debe sobrepasar los dedos del pie.',
+    'variations': ['Con mancuernas', 'Con barra', 'Con peso corporal'],
+    'video_url': null,
+    'equipment': 'Banco + Mancuernas o Barra',
+    'default_sets': 3,
+    'default_reps': '8-10 por pierna',
+    'default_rest_seconds': 90,
+  },
+  {
+    'name': 'Curl Femoral',
+    'muscle_group': 'piernas',
+    'difficulty': 'principiante',
+    'description': 'Ejercicio de aislamiento para isquiotibiales en máquina.',
+    'muscles': ['Isquiotibiales', 'Glúteos'],
+    'instructions': [
+      'Tumbado en la máquina, coloca el eje a la altura de las rodillas.',
+      'Flexiona las rodillas trayendo los pies hacia los glúteos.',
+      'Extiende lentamente.',
+    ],
+    'safety_notes':
+        'No uses inercia. Movimiento lento y controlado especialmente en la bajada.',
+    'variations': ['Curl nórdico', 'Curl femoral de pie', 'Good morning'],
+    'video_url': null,
+    'equipment': 'Máquina curl femoral',
+    'default_sets': 3,
+    'default_reps': '12-15',
+    'default_rest_seconds': 60,
+  },
+
+  // ── Pecho (adicional) ─────────────────────────────────────────────────────
+  {
+    'name': 'Push Up (Flexiones)',
+    'muscle_group': 'pecho',
+    'difficulty': 'principiante',
+    'description':
+        'El ejercicio más accesible para el pecho. No requiere equipamiento y es excelente para principiantes.',
+    'muscles': ['Pectoral mayor', 'Tríceps', 'Deltoides anterior', 'Core'],
+    'instructions': [
+      'Posición de plancha alta con manos algo más ancho que los hombros.',
+      'Baja el pecho al suelo manteniendo el cuerpo recto.',
+      'Empuja hacia arriba hasta extender los brazos.',
+    ],
+    'safety_notes': 'Mantén el core activo. No dejes caer las caderas.',
+    'variations': [
+      'Flexiones inclinadas',
+      'Flexiones declinadas',
+      'Flexiones diamante',
+      'Flexiones en T',
+    ],
+    'video_url': null,
+    'equipment': 'Solo peso corporal',
+    'default_sets': 3,
+    'default_reps': '10-20',
+    'default_rest_seconds': 60,
+  },
+
   // ── Glúteos ───────────────────────────────────────────────────────────────
   {
     'name': 'Hip Thrust',
