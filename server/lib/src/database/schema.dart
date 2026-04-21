@@ -100,6 +100,8 @@ const List<String> _schemaStatements = [
     safety_notes         TEXT,
     variations           TEXT[]           NOT NULL DEFAULT \'{}\',
     video_url            VARCHAR(500),
+    image_url            TEXT,
+    step_images          TEXT[]           NOT NULL DEFAULT \'{}\',
     equipment            VARCHAR(255),
     default_sets         INTEGER          NOT NULL DEFAULT 3,
     default_reps         VARCHAR(20)      NOT NULL DEFAULT \'8-12\',
@@ -116,6 +118,7 @@ const List<String> _schemaStatements = [
     id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id        UUID         REFERENCES users(id) ON DELETE CASCADE,
     name           VARCHAR(255) NOT NULL,
+    description    TEXT,
     goal           workout_goal NOT NULL DEFAULT \'hipertrofia\',
     frequency_days INTEGER      NOT NULL DEFAULT 3,
     is_public      BOOLEAN      NOT NULL DEFAULT false,
@@ -125,6 +128,9 @@ const List<String> _schemaStatements = [
     updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
   )
   ''',
+
+  // Migración idempotente: agrega description si la tabla ya existía sin ella
+  'ALTER TABLE routines ADD COLUMN IF NOT EXISTS description TEXT',
 
   // ── Tabla: routine_days ───────────────────────────────────────────────────
   '''
@@ -149,6 +155,25 @@ const List<String> _schemaStatements = [
     order_index    INTEGER     NOT NULL DEFAULT 0
   )
   ''',
+
+  // ── Tabla: joint_exercises ────────────────────────────────────────────────
+  '''
+  CREATE TABLE IF NOT EXISTS joint_exercises (
+    id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    name         VARCHAR(255) NOT NULL,
+    type         VARCHAR(20)  NOT NULL CHECK (type IN (\'movilidad\', \'fortalecimiento\')),
+    joint_family VARCHAR(50)  NOT NULL,
+    instructions TEXT[]       NOT NULL DEFAULT \'{}\',
+    benefits     TEXT,
+    when_to_use  TEXT,
+    created_by   UUID         REFERENCES users(id),
+    is_active    BOOLEAN      NOT NULL DEFAULT true,
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  )
+  ''',
+
+  'CREATE INDEX IF NOT EXISTS idx_joint_exercises_family ON joint_exercises(joint_family)',
+  'CREATE INDEX IF NOT EXISTS idx_joint_exercises_active ON joint_exercises(is_active) WHERE is_active = true',
 
   // ── Tabla: workout_sessions ───────────────────────────────────────────────
   '''
@@ -292,6 +317,10 @@ const List<String> _schemaStatements = [
   'CREATE INDEX IF NOT EXISTS idx_routines_public ON routines(is_public) WHERE is_public = true',
 
   'CREATE INDEX IF NOT EXISTS idx_routine_days_routine_id ON routine_days(routine_id)',
+  'ALTER TABLE routine_day_exercises ADD COLUMN IF NOT EXISTS rir INTEGER',
+  'ALTER TABLE exercises ADD COLUMN IF NOT EXISTS image_url TEXT',
+  "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS step_images TEXT[] NOT NULL DEFAULT '{}'",
+
   'CREATE INDEX IF NOT EXISTS idx_rde_routine_day_id ON routine_day_exercises(routine_day_id)',
 
   'CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON workout_sessions(user_id)',
@@ -316,6 +345,104 @@ const List<String> _schemaStatements = [
 
   'CREATE INDEX IF NOT EXISTS idx_audit_user_id ON security_audit_log(user_id)',
   'CREATE INDEX IF NOT EXISTS idx_audit_created ON security_audit_log(created_at DESC)',
+
+  // ── Columnas adicionales (idempotentes) ───────────────────────────────────
+  "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS exercise_type TEXT NOT NULL DEFAULT 'dinamico' CHECK (exercise_type IN ('dinamico', 'isometrico'))",
+  'ALTER TABLE workout_sets ADD COLUMN IF NOT EXISTS duration_seconds INTEGER',
+  'ALTER TABLE users ADD COLUMN IF NOT EXISTS faculty TEXT',
+  'ALTER TABLE articles ADD COLUMN IF NOT EXISTS image_url TEXT',
+  'ALTER TABLE articles ADD COLUMN IF NOT EXISTS bibliography TEXT',
+  'ALTER TABLE articles ADD COLUMN IF NOT EXISTS resources JSONB',
+  'ALTER TABLE events ADD COLUMN IF NOT EXISTS image_url TEXT',
+  'ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date TIMESTAMPTZ',
+  'ALTER TABLE routines ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT false',
+
+  // ── Flag rankeable en ejercicios ─────────────────────────────────────────
+  'ALTER TABLE exercises ADD COLUMN IF NOT EXISTS is_rankeable BOOLEAN NOT NULL DEFAULT false',
+
+  // ── Enum y tablas de postulaciones al ranking ─────────────────────────────
+  "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'lift_submission_status') THEN CREATE TYPE lift_submission_status AS ENUM ('pending', 'approved', 'rejected'); END IF; END \$\$",
+
+  '''
+  CREATE TABLE IF NOT EXISTS lift_submissions (
+    id                  UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id             UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    exercise_id         UUID          NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    weight_kg           NUMERIC(6,2)  NOT NULL CHECK (weight_kg > 0),
+    reps                SMALLINT      NOT NULL DEFAULT 1 CHECK (reps > 0),
+    location_name       VARCHAR(300),
+    location_lat        DOUBLE PRECISION,
+    location_lng        DOUBLE PRECISION,
+    description         TEXT,
+    was_witnessed       BOOLEAN       NOT NULL DEFAULT false,
+    witness_name        VARCHAR(200),
+    video_url           VARCHAR(500)  NOT NULL,
+    status              lift_submission_status NOT NULL DEFAULT \'pending\',
+    reviewed_by         UUID          REFERENCES users(id) ON DELETE SET NULL,
+    review_comment      TEXT,
+    reviewed_at         TIMESTAMPTZ,
+    is_record_breaking  BOOLEAN       DEFAULT false,
+    created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+  )
+  ''',
+
+  '''
+  CREATE TABLE IF NOT EXISTS lift_submission_images (
+    id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    submission_id  UUID        NOT NULL REFERENCES lift_submissions(id) ON DELETE CASCADE,
+    image_url      VARCHAR(500) NOT NULL,
+    sort_order     SMALLINT    NOT NULL DEFAULT 0,
+    uploaded_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+  ''',
+
+  "CREATE INDEX IF NOT EXISTS idx_lift_submissions_user ON lift_submissions(user_id)",
+  "CREATE INDEX IF NOT EXISTS idx_lift_submissions_exercise ON lift_submissions(exercise_id, weight_kg DESC) WHERE status = 'approved'",
+  "CREATE INDEX IF NOT EXISTS idx_lift_submissions_pending ON lift_submissions(status) WHERE status = 'pending'",
+  "CREATE INDEX IF NOT EXISTS idx_lift_submission_images ON lift_submission_images(submission_id)",
+
+  // ── Estados de sesión de entrenamiento ───────────────────────────────────
+  "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'workout_session_status') THEN CREATE TYPE workout_session_status AS ENUM ('in_progress', 'completed', 'partial'); END IF; END \$\$",
+  "ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS status workout_session_status NOT NULL DEFAULT 'in_progress'",
+  'ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS early_finish_reason TEXT',
+
+  // ── Tabla: app_notifications (notificaciones del sistema / parches / noticias) ─
+  """
+  CREATE TABLE IF NOT EXISTS app_notifications (
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    type       VARCHAR(30)  NOT NULL DEFAULT 'news'
+                              CHECK (type IN ('news', 'patch', 'feature', 'reminder')),
+    title      VARCHAR(255) NOT NULL,
+    body       TEXT         NOT NULL,
+    created_by UUID         REFERENCES users(id),
+    is_active  BOOLEAN      NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  )
+  """,
+
+  // ── Tabla: notification_reads (rastrea lecturas por usuario) ─────────────────
+  '''
+  CREATE TABLE IF NOT EXISTS notification_reads (
+    user_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    notif_type   VARCHAR(20) NOT NULL,
+    reference_id UUID        NOT NULL,
+    read_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, notif_type, reference_id)
+  )
+  ''',
+  'CREATE INDEX IF NOT EXISTS idx_notif_reads_user ON notification_reads(user_id)',
+
+  // ── Tabla: event_interests ────────────────────────────────────────────────
+  '''
+  CREATE TABLE IF NOT EXISTS event_interests (
+    user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    event_id   UUID        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, event_id)
+  )
+  ''',
+  'CREATE INDEX IF NOT EXISTS idx_event_interests_event ON event_interests(event_id)',
 
   // ── Función trigger: updated_at automático ────────────────────────────────
   r'''

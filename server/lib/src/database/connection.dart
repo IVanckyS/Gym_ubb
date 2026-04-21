@@ -43,9 +43,12 @@ Future<void> initDb() async {
   // Crear tablas, enums e índices si no existen
   await initSchema(_db!);
 
-  // Sembrar datos de desarrollo (admin + ejercicios) si es necesario
+  // Sembrar datos de desarrollo si es necesario
   await seedAdminUser(_db!);
   await seedDev(_db!);
+  await seedJointExercises(_db!);
+  await seedArticles(_db!);
+  await seedEvents(_db!);
 }
 
 /// Cierra la conexión activa. Útil para shutdown graceful y tests.

@@ -45,10 +45,9 @@ class _CareersScreenState extends State<CareersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPrimary,
+      backgroundColor: context.colorBgPrimary,
       appBar: AppBar(
         title: const Text('Gestión de carreras'),
-        backgroundColor: AppColors.bgSecondary,
         leading: IconButton(
           icon: const Icon(Icons.home_outlined),
           tooltip: 'Inicio',
@@ -57,7 +56,7 @@ class _CareersScreenState extends State<CareersScreen> {
         actions: [
           Row(
             children: [
-              const Text('Ver inactivas', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              Text('Ver inactivas', style: TextStyle(color: context.colorTextSecondary, fontSize: 13)),
               Switch(
                 value: _showInactive,
                 activeThumbColor: AppColors.accentPrimary,
@@ -91,8 +90,8 @@ class _CareersScreenState extends State<CareersScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.error_outline, color: AppColors.accentSecondary, size: 48),
-            const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            SizedBox(height: 12),
+            Text(_error!, style: TextStyle(color: context.colorTextSecondary)),
             const SizedBox(height: 16),
             ElevatedButton(onPressed: _load, child: const Text('Reintentar')),
           ],
@@ -100,13 +99,13 @@ class _CareersScreenState extends State<CareersScreen> {
       );
     }
     if (_careers.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.school_outlined, color: AppColors.textMuted, size: 48),
             SizedBox(height: 12),
-            Text('No hay carreras registradas', style: TextStyle(color: AppColors.textSecondary)),
+            Text('No hay carreras registradas', style: TextStyle(color: context.colorTextSecondary)),
           ],
         ),
       );
@@ -118,13 +117,13 @@ class _CareersScreenState extends State<CareersScreen> {
         child: ListView.separated(
           padding: const EdgeInsets.all(24),
           itemCount: _careers.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 8),
+          separatorBuilder: (context, index) => SizedBox(height: 8),
           itemBuilder: (context, i) {
             final career = _careers[i];
             final isActive = career['isActive'] as bool? ?? true;
             return Container(
               decoration: BoxDecoration(
-                color: AppColors.bgSecondary,
+                color: context.colorBgSecondary,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isActive ? AppColors.border : AppColors.textMuted.withValues(alpha: 0.3),
@@ -144,7 +143,7 @@ class _CareersScreenState extends State<CareersScreen> {
                 ),
                 subtitle: isActive
                     ? null
-                    : const Text('Inactiva', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                    : Text('Inactiva', style: TextStyle(color: context.colorTextMuted, fontSize: 12)),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -177,16 +176,15 @@ class _CareersScreenState extends State<CareersScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgSecondary,
         title: Text(
           isActive ? 'Desactivar carrera' : 'Activar carrera',
-          style: const TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: context.colorTextPrimary),
         ),
         content: Text(
           isActive
               ? 'La carrera "${career['name']}" no aparecerá al crear usuarios.'
               : 'La carrera "${career['name']}" volverá a estar disponible.',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: context.colorTextSecondary),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
@@ -222,10 +220,9 @@ class _CareersScreenState extends State<CareersScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.bgSecondary,
           title: Text(
             career == null ? 'Nueva carrera' : 'Renombrar carrera',
-            style: const TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: context.colorTextPrimary),
           ),
           content: Form(
             key: formKey,
@@ -240,7 +237,7 @@ class _CareersScreenState extends State<CareersScreen> {
                 TextFormField(
                   controller: ctrl,
                   autofocus: true,
-                  style: const TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: context.colorTextPrimary),
                   decoration: const InputDecoration(
                     labelText: 'Nombre de la carrera',
                     hintText: 'Ej: Ingeniería Civil Informática',
@@ -276,3 +273,9 @@ class _CareersScreenState extends State<CareersScreen> {
     if (result == true) _load();
   }
 }
+
+
+
+
+
+

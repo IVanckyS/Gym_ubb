@@ -15,8 +15,8 @@ String get _jwtSecret {
 String get _jwtAudience =>
     Platform.environment['JWT_AUDIENCE'] ?? 'gym-ubb-app';
 
-/// Duración del access token: 15 minutos.
-const _accessTokenTtl = Duration(minutes: 15);
+/// Duración del access token: 30 minutos.
+const _accessTokenTtl = Duration(minutes: 30);
 
 /// Duración del refresh token: 30 días.
 const _refreshTokenTtl = Duration(days: 30);

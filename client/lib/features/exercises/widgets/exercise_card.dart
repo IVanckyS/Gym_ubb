@@ -35,6 +35,19 @@ class ExerciseCard extends StatelessWidget {
   static String _muscleGroupLabel(String? group) =>
       BodyMapData.muscleGroupDisplayName[group] ?? group ?? '';
 
+  static String _muscleEmoji(String? group) {
+    switch (group) {
+      case 'pecho':    return '💪';
+      case 'espalda':  return '🏋️';
+      case 'piernas':  return '🦵';
+      case 'hombros':  return '🔝';
+      case 'brazos':   return '💪';
+      case 'core':     return '⚡';
+      case 'gluteos':  return '🍑';
+      default:         return '🏃';
+    }
+  }
+
   static String _difficultyLabel(String? difficulty) {
     switch (difficulty) {
       case 'principiante':
@@ -48,14 +61,16 @@ class ExerciseCard extends StatelessWidget {
     }
   }
 
+  static const _isometricColor = Color(0xFF818cf8);
+
   @override
   Widget build(BuildContext context) {
     final name = exercise['name'] as String? ?? '';
     final muscleGroup = exercise['muscleGroup'] as String?;
     final difficulty = exercise['difficulty'] as String?;
     final equipment = exercise['equipment'] as String?;
-    final defaultSets = exercise['defaultSets'];
-    final defaultReps = exercise['defaultReps'] as String?;
+    final exerciseType = exercise['exerciseType'] as String? ?? 'dinamico';
+    final isIsometric = exerciseType == 'isometrico';
 
     final muscleColor = _muscleGroupColor(muscleGroup);
     final difficultyColor = _difficultyColor(difficulty);
@@ -67,7 +82,7 @@ class ExerciseCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.bgSecondary,
+            color: context.colorBgSecondary,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
@@ -105,6 +120,10 @@ class ExerciseCard extends StatelessWidget {
                           label: _difficultyLabel(difficulty),
                           color: difficultyColor,
                         ),
+                        if (isIsometric) ...[
+                          const SizedBox(width: 6),
+                          const _Badge(label: 'Isométrico', color: _isometricColor),
+                        ],
                       ],
                     ),
                   ],
@@ -120,13 +139,15 @@ class ExerciseCard extends StatelessWidget {
       );
     }
 
+    final muscleEmoji = _muscleEmoji(muscleGroup);
+
     // Full card
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.bgSecondary,
+          color: context.colorBgSecondary,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.border),
         ),
@@ -144,43 +165,64 @@ class ExerciseCard extends StatelessWidget {
                 ),
               ),
             ),
+            // Muscle group visual
+            Container(
+              height: 60,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: muscleColor.withAlpha(18),
+              ),
+              child: Center(
+                child: Text(muscleEmoji, style: const TextStyle(fontSize: 30)),
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Badges row
                   Row(
                     children: [
-                      _Badge(
-                        label: _muscleGroupLabel(muscleGroup),
-                        color: muscleColor,
+                      Expanded(
+                        child: _Badge(
+                          label: _muscleGroupLabel(muscleGroup),
+                          color: muscleColor,
+                        ),
                       ),
-                      const SizedBox(width: 6),
-                      _Badge(
-                        label: _difficultyLabel(difficulty),
-                        color: difficultyColor,
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: _Badge(
+                          label: _difficultyLabel(difficulty),
+                          color: difficultyColor,
+                        ),
                       ),
+                      if (isIsometric) ...[
+                        const SizedBox(width: 4),
+                        const Expanded(
+                          child: _Badge(label: 'Isométrico', color: _isometricColor),
+                        ),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   // Name
                   Text(
                     name,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (equipment != null && equipment.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Row(
                       children: [
-                        const Icon(
-                          Icons.fitness_center,
-                          size: 13,
-                          color: AppColors.textMuted,
-                        ),
-                        const SizedBox(width: 4),
+                        const Icon(Icons.fitness_center,
+                            size: 11, color: AppColors.textMuted),
+                        const SizedBox(width: 3),
                         Expanded(
                           child: Text(
                             equipment,
@@ -188,22 +230,6 @@ class ExerciseCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (defaultSets != null && defaultReps != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _InfoChip(
-                          icon: Icons.repeat,
-                          label: '$defaultSets series',
-                        ),
-                        const SizedBox(width: 8),
-                        _InfoChip(
-                          icon: Icons.tag,
-                          label: '$defaultReps reps',
                         ),
                       ],
                     ),
@@ -240,39 +266,10 @@ class _Badge extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _InfoChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.bgTertiary,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: AppColors.textSecondary),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

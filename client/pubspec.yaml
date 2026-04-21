@@ -26,6 +26,29 @@ dependencies:
   # URL launcher (video tutorials)
   url_launcher: ^6.3.1
 
+  # WebView para reproducir YouTube embed
+  webview_flutter: ^4.10.0
+
+  # SVG rendering (mapa corporal)
+  flutter_svg: ^2.0.10+1
+
+  # Galería / cámara para subir imágenes de ejercicios
+  image_picker: ^1.1.2
+
+  # Gráficos (historial de progreso)
+  fl_chart: ^0.70.2
+
+  # Onboarding y preferencias
+  shared_preferences: ^2.3.3
+  permission_handler: ^11.3.1
+
+  # Sonidos (countdown timer de descanso)
+  audioplayers: ^6.1.0
+
+  # Exportar historial en PDF
+  pdf: ^3.12.0
+  printing: ^5.14.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -37,3 +60,4 @@ flutter:
   assets:
     - assets/images/
     - assets/body-map/
+    - assets/sounds/

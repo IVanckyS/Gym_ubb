@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/providers/auth_provider.dart';
+import '../../../shared/services/joint_exercises_service.dart';
 import '../data/body_map_data.dart';
 import 'exercise_card.dart';
 
@@ -17,7 +22,9 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
   String _view = 'front';
   String _mode = 'muscles'; // 'muscles' | 'joints'
   String? _selectedGroup;
+  String? _hoveredGroup;
   String? _selectedJointFamily;
+  final JointExercisesService _jointService = JointExercisesService();
 
   List<MuscleZone> get _currentZones =>
       _view == 'front' ? BodyMapData.zonesFront : BodyMapData.zonesBack;
@@ -26,8 +33,8 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
       _view == 'front' ? BodyMapData.jointsFront : BodyMapData.jointsBack;
 
   void _handleMuscleTap(Offset localPos, Size widgetSize) {
-    final scaleX = widgetSize.width / 200;
-    final scaleY = widgetSize.height / 338;
+    final scaleX = widgetSize.width / 658;
+    final scaleY = widgetSize.height / 1024;
 
     for (final zone in _currentZones) {
       final pts = _parsePoints(zone.points, scaleX, scaleY);
@@ -39,6 +46,17 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
       }
     }
     setState(() => _selectedGroup = null);
+  }
+
+  String? _groupAtPosition(Offset localPos, Size widgetSize) {
+    final scaleX = widgetSize.width / 658;
+    final scaleY = widgetSize.height / 1024;
+    for (final zone in _currentZones) {
+      final pts = _parsePoints(zone.points, scaleX, scaleY);
+      final path = Path()..addPolygon(pts, true);
+      if (path.contains(localPos)) return zone.muscleGroup;
+    }
+    return null;
   }
 
   List<Offset> _parsePoints(String points, double scaleX, double scaleY) {
@@ -72,10 +90,9 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
   }
 
   void _showJointBottomSheet(String family) {
-    final familyExercises = BodyMapData.jointExercises
-        .where((e) => e.jointFamily == family)
-        .toList();
     final familyName = BodyMapData.jointFamilyNames[family] ?? family;
+    final role = context.read<AuthProvider>().user?['role'] as String? ?? '';
+    final canCreate = role == 'admin' || role == 'professor';
 
     showModalBottomSheet(
       context: context,
@@ -85,8 +102,10 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
       ),
       isScrollControlled: true,
       builder: (ctx) => _JointBottomSheet(
+        family: family,
         familyName: familyName,
-        exercises: familyExercises,
+        service: _jointService,
+        canCreate: canCreate,
       ),
     );
   }
@@ -101,34 +120,48 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 260),
             child: AspectRatio(
-              aspectRatio: 200 / 338,
+              aspectRatio: 658 / 1024,
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   return Stack(
                     children: [
                       // Background body image
-                      Image.asset(
-                        'assets/body-map/body-map_${_gender}_$_view.png',
+                      SvgPicture.asset(
+                        _gender == 'male'
+                            ? (_view == 'front'
+                                ? 'assets/body-map/FRONT_MELE.svg'
+                                : 'assets/body-map/BACK_MELE.svg')
+                            : (_view == 'front'
+                                ? 'assets/body-map/FRONT_WOMAN.svg'
+                                : 'assets/body-map/BACK_WOMAN.svg'),
                         width: constraints.maxWidth,
                         height: constraints.maxHeight,
                         fit: BoxFit.fill,
-                        errorBuilder: (c, e, s) =>
-                            _buildPlaceholder(constraints),
                       ),
                       // Interactive overlay
                       if (_mode == 'muscles')
-                        GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onTapDown: (d) => _handleMuscleTap(
-                            d.localPosition,
-                            constraints.biggest,
-                          ),
-                          child: CustomPaint(
-                            size: constraints.biggest,
-                            painter: _MusclePainter(
-                              zones: _currentZones,
-                              selectedGroup: _selectedGroup,
-                              viewBox: const Size(200, 338),
+                        MouseRegion(
+                          onHover: (e) {
+                            final g = _groupAtPosition(e.localPosition, constraints.biggest);
+                            if (g != _hoveredGroup) setState(() => _hoveredGroup = g);
+                          },
+                          onExit: (_) {
+                            if (_hoveredGroup != null) setState(() => _hoveredGroup = null);
+                          },
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTapDown: (d) => _handleMuscleTap(
+                              d.localPosition,
+                              constraints.biggest,
+                            ),
+                            child: CustomPaint(
+                              size: constraints.biggest,
+                              painter: _MusclePainter(
+                                zones: _currentZones,
+                                selectedGroup: _selectedGroup,
+                                hoveredGroup: _hoveredGroup,
+                                viewBox: const Size(658, 1024),
+                              ),
                             ),
                           ),
                         )
@@ -145,29 +178,6 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
         if (_mode == 'muscles') _buildMuscleLegend(),
         if (_mode == 'joints') _buildJointLegend(),
       ],
-    );
-  }
-
-  Widget _buildPlaceholder(BoxConstraints constraints) {
-    return Container(
-      width: constraints.maxWidth,
-      height: constraints.maxHeight,
-      decoration: BoxDecoration(
-        color: AppColors.bgTertiary,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.accessibility_new, size: 60, color: AppColors.textMuted),
-          SizedBox(height: 8),
-          Text(
-            'Imagen no disponible',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-          ),
-        ],
-      ),
     );
   }
 
@@ -209,8 +219,8 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
   }
 
   Widget _buildJointsOverlay(Size size) {
-    final scaleX = size.width / 200;
-    final scaleY = size.height / 338;
+    final scaleX = size.width / 658;
+    final scaleY = size.height / 1024;
 
     final renderedFamilies = <String>{};
     final widgets = <Widget>[];
@@ -389,11 +399,13 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
 class _MusclePainter extends CustomPainter {
   final List<MuscleZone> zones;
   final String? selectedGroup;
+  final String? hoveredGroup;
   final Size viewBox;
 
   const _MusclePainter({
     required this.zones,
     required this.selectedGroup,
+    required this.hoveredGroup,
     required this.viewBox,
   });
 
@@ -416,28 +428,34 @@ class _MusclePainter extends CustomPainter {
       final color = BodyMapData.muscleColors[zone.muscleGroup] ??
           AppColors.accentPrimary;
       final isSelected = selectedGroup == zone.muscleGroup;
+      final isHovered = hoveredGroup == zone.muscleGroup;
+      final isActive = isSelected || isHovered;
+
+      if (!isActive) continue; // transparent when idle
 
       final pts = _parsePoints(zone.points, scaleX, scaleY);
       final path = Path()..addPolygon(pts, true);
 
       // Fill
       final fillPaint = Paint()
-        ..color = color.withValues(alpha: isSelected ? 0.55 : 0.25)
+        ..color = color.withValues(alpha: isSelected ? 0.55 : 0.30)
         ..style = PaintingStyle.fill;
       canvas.drawPath(path, fillPaint);
 
       // Stroke
       final strokePaint = Paint()
-        ..color = color.withValues(alpha: isSelected ? 0.9 : 0.6)
+        ..color = color.withValues(alpha: isSelected ? 0.9 : 0.7)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = isSelected ? 1.5 : 0.8;
+        ..strokeWidth = isSelected ? 1.5 : 1.0;
       canvas.drawPath(path, strokePaint);
     }
   }
 
   @override
   bool shouldRepaint(_MusclePainter old) =>
-      old.selectedGroup != selectedGroup || old.zones != zones;
+      old.selectedGroup != selectedGroup ||
+      old.hoveredGroup != hoveredGroup ||
+      old.zones != zones;
 }
 
 // ── Toggle group helper widget ────────────────────────────────────────────────
@@ -457,7 +475,7 @@ class _ToggleGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.bgTertiary,
+        color: context.colorBgTertiary,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.border),
       ),
@@ -531,7 +549,7 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
       builder: (ctx, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: AppColors.bgSecondary,
+            color: context.colorBgSecondary,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             border: Border.all(color: AppColors.border),
           ),
@@ -628,10 +646,10 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
               // Exercise list
               Expanded(
                 child: filtered.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           'No hay ejercicios para este filtro',
-                          style: TextStyle(color: AppColors.textMuted),
+                          style: TextStyle(color: context.colorTextMuted),
                         ),
                       )
                     : ListView.separated(
@@ -644,9 +662,7 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
                           compact: true,
                           onTap: () {
                             Navigator.pop(ctx);
-                            Navigator.of(context).pushNamed(
-                              '/exercises/${filtered[i]['id']}',
-                            );
+                            context.push('/exercises/${filtered[i]['id']}');
                           },
                         ),
                       ),
@@ -661,36 +677,78 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
 
 // ── Bottom sheet: joint exercises ─────────────────────────────────────────────
 
-class _JointBottomSheet extends StatelessWidget {
+class _JointBottomSheet extends StatefulWidget {
+  final String family;
   final String familyName;
-  final List<JointExercise> exercises;
+  final JointExercisesService service;
+  final bool canCreate;
 
   const _JointBottomSheet({
+    required this.family,
     required this.familyName,
-    required this.exercises,
+    required this.service,
+    required this.canCreate,
   });
+
+  @override
+  State<_JointBottomSheet> createState() => _JointBottomSheetState();
+}
+
+class _JointBottomSheetState extends State<_JointBottomSheet> {
+  List<Map<String, dynamic>> _exercises = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final list = await widget.service.list(family: widget.family);
+      if (mounted) setState(() { _exercises = list; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showCreateForm() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppColors.bgSecondary,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _CreateJointExerciseSheet(
+        family: widget.family,
+        familyName: widget.familyName,
+        service: widget.service,
+      ),
+    );
+    if (created == true) _load();
+  }
 
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
       expand: false,
-      initialChildSize: 0.55,
+      initialChildSize: 0.6,
       maxChildSize: 0.92,
       minChildSize: 0.3,
       builder: (ctx, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: AppColors.bgSecondary,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
+            color: context.colorBgSecondary,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
             children: [
               const SizedBox(height: 10),
               Container(
-                width: 40,
-                height: 4,
+                width: 40, height: 4,
                 decoration: BoxDecoration(
                   color: AppColors.textMuted,
                   borderRadius: BorderRadius.circular(2),
@@ -702,8 +760,7 @@ class _JointBottomSheet extends StatelessWidget {
                 child: Row(
                   children: [
                     Container(
-                      width: 12,
-                      height: 12,
+                      width: 12, height: 12,
                       decoration: const BoxDecoration(
                         color: AppColors.accentPrimary,
                         shape: BoxShape.circle,
@@ -711,7 +768,7 @@ class _JointBottomSheet extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      familyName,
+                      widget.familyName,
                       style: const TextStyle(
                         color: AppColors.accentPrimary,
                         fontSize: 20,
@@ -719,32 +776,64 @@ class _JointBottomSheet extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '${exercises.length} ejercicios',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    if (!_loading)
+                      Text(
+                        '${_exercises.length} ejercicios',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    const Spacer(),
+                    if (widget.canCreate)
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline,
+                            color: AppColors.accentPrimary),
+                        tooltip: 'Agregar ejercicio',
+                        onPressed: _showCreateForm,
+                        splashRadius: 20,
+                      ),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
               const Divider(height: 1, color: AppColors.border),
               Expanded(
-                child: exercises.isEmpty
+                child: _loading
                     ? const Center(
-                        child: Text(
-                          'Sin ejercicios registrados',
-                          style: TextStyle(color: AppColors.textMuted),
-                        ),
-                      )
-                    : ListView.separated(
-                        controller: scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: exercises.length,
-                        separatorBuilder: (context2, i2) =>
-                            const SizedBox(height: 12),
-                        itemBuilder: (_, i) =>
-                            _JointExerciseCard(exercise: exercises[i]),
-                      ),
+                        child: CircularProgressIndicator(
+                            color: AppColors.accentPrimary))
+                    : _exercises.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.fitness_center,
+                                    color: AppColors.textMuted, size: 40),
+                                const SizedBox(height: 12),
+                                const Text('Sin ejercicios registrados',
+                                    style: TextStyle(
+                                        color: AppColors.textMuted)),
+                                if (widget.canCreate) ...[
+                                  const SizedBox(height: 12),
+                                  TextButton.icon(
+                                    onPressed: _showCreateForm,
+                                    icon: const Icon(Icons.add,
+                                        color: AppColors.accentPrimary),
+                                    label: const Text('Agregar ejercicio',
+                                        style: TextStyle(
+                                            color: AppColors.accentPrimary)),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            controller: scrollController,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _exercises.length,
+                            separatorBuilder: (_, i) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (_, i) =>
+                                _JointExerciseCard(exercise: _exercises[i]),
+                          ),
               ),
             ],
           ),
@@ -755,147 +844,109 @@ class _JointBottomSheet extends StatelessWidget {
 }
 
 class _JointExerciseCard extends StatelessWidget {
-  final JointExercise exercise;
+  final Map<String, dynamic> exercise;
 
   const _JointExerciseCard({required this.exercise});
 
   @override
   Widget build(BuildContext context) {
-    final isMovilidad = exercise.type == 'movilidad';
-    final typeColor = isMovilidad
-        ? const Color(0xFF4ECDC4)
-        : AppColors.accentPrimary;
+    final type = exercise['type'] as String? ?? '';
+    final name = exercise['name'] as String? ?? '';
+    final instructions = (exercise['instructions'] as List?)?.cast<String>() ?? [];
+    final benefits = exercise['benefits'] as String?;
+    final whenToUse = exercise['whenToUse'] as String?;
+
+    final isMovilidad = type == 'movilidad';
+    final typeColor = isMovilidad ? const Color(0xFF4ECDC4) : AppColors.accentPrimary;
     final typeLabel = isMovilidad ? 'Movilidad' : 'Fortalecimiento';
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.bgTertiary,
+        color: context.colorBgTertiary,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: typeColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: typeColor.withValues(alpha: 0.4)),
-                ),
-                child: Text(
-                  typeLabel,
-                  style: TextStyle(
-                    color: typeColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: typeColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: typeColor.withValues(alpha: 0.4)),
+            ),
+            child: Text(typeLabel,
+                style: TextStyle(
+                    color: typeColor, fontSize: 11, fontWeight: FontWeight.w600)),
           ),
           const SizedBox(height: 8),
-          Text(
-            exercise.name,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          ...exercise.instructions.asMap().entries.map((entry) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 18,
-                      height: 18,
-                      margin: const EdgeInsets.only(right: 8, top: 1),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentPrimary.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${entry.key + 1}',
-                          style: const TextStyle(
-                            color: AppColors.accentPrimary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
+          Text(name, style: Theme.of(context).textTheme.titleMedium),
+          if (instructions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...instructions.asMap().entries.map((entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 18, height: 18,
+                        margin: const EdgeInsets.only(right: 8, top: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentPrimary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text('${entry.key + 1}',
+                              style: const TextStyle(
+                                  color: AppColors.accentPrimary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700)),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        entry.value,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                      Expanded(
+                        child: Text(entry.value,
+                            style: Theme.of(context).textTheme.bodyMedium),
                       ),
-                    ),
-                  ],
-                ),
-              )),
-          if (exercise.benefits != null) ...[
+                    ],
+                  ),
+                )),
+          ],
+          if (benefits != null && benefits.isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0xFF4ECDC4).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: const Color(0xFF4ECDC4).withValues(alpha: 0.25),
-                ),
+                border: Border.all(color: const Color(0xFF4ECDC4).withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.check_circle_outline,
-                    size: 14,
-                    color: Color(0xFF4ECDC4),
-                  ),
+                  const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF4ECDC4)),
                   const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      exercise.benefits!,
-                      style: const TextStyle(
-                        color: Color(0xFF4ECDC4),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
+                  Expanded(child: Text(benefits,
+                      style: const TextStyle(color: Color(0xFF4ECDC4), fontSize: 12))),
                 ],
               ),
             ),
           ],
-          if (exercise.whenToUse != null) ...[
+          if (whenToUse != null && whenToUse.isNotEmpty) ...[
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: AppColors.accentPrimary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: AppColors.accentPrimary.withValues(alpha: 0.25),
-                ),
+                border: Border.all(color: AppColors.accentPrimary.withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.info_outline,
-                    size: 14,
-                    color: AppColors.accentPrimary,
-                  ),
+                  const Icon(Icons.info_outline, size: 14, color: AppColors.accentPrimary),
                   const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      exercise.whenToUse!,
-                      style: const TextStyle(
-                        color: AppColors.accentPrimary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
+                  Expanded(child: Text(whenToUse,
+                      style: const TextStyle(color: AppColors.accentPrimary, fontSize: 12))),
                 ],
               ),
             ),
@@ -905,3 +956,311 @@ class _JointExerciseCard extends StatelessWidget {
     );
   }
 }
+
+// ── Create joint exercise sheet ───────────────────────────────────────────────
+
+class _CreateJointExerciseSheet extends StatefulWidget {
+  final String family;
+  final String familyName;
+  final JointExercisesService service;
+
+  const _CreateJointExerciseSheet({
+    required this.family,
+    required this.familyName,
+    required this.service,
+  });
+
+  @override
+  State<_CreateJointExerciseSheet> createState() =>
+      _CreateJointExerciseSheetState();
+}
+
+class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _benefitsCtrl = TextEditingController();
+  final _whenToUseCtrl = TextEditingController();
+  final List<TextEditingController> _stepCtrl = [TextEditingController()];
+  String _type = 'movilidad';
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _benefitsCtrl.dispose();
+    _whenToUseCtrl.dispose();
+    for (final c in _stepCtrl) { c.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() { _saving = true; _error = null; });
+    try {
+      final instructions = _stepCtrl
+          .map((c) => c.text.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      await widget.service.create({
+        'name': _nameCtrl.text.trim(),
+        'type': _type,
+        'jointFamily': widget.family,
+        'instructions': instructions,
+        'benefits': _benefitsCtrl.text.trim(),
+        'whenToUse': _whenToUseCtrl.text.trim(),
+      });
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      setState(() { _saving = false; _error = e.toString(); });
+    }
+  }
+
+  InputDecoration _deco(String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: context.colorTextMuted),
+        filled: true,
+        fillColor: AppColors.bgTertiary,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        builder: (ctx, scroll) => Container(
+          decoration: BoxDecoration(
+            color: context.colorBgSecondary,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: AppColors.textMuted,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 16, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Nuevo ejercicio — ${widget.familyName}',
+                        style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: AppColors.textMuted),
+                      onPressed: () => Navigator.pop(context),
+                      splashRadius: 18,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.border),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scroll,
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Nombre
+                        _Label('Nombre *'),
+                        SizedBox(height: 6),
+                        TextFormField(
+                          controller: _nameCtrl,
+                          style: TextStyle(color: context.colorTextPrimary),
+                          decoration: _deco('Ej. Rotaciones de hombro'),
+                          validator: (v) =>
+                              v == null || v.trim().isEmpty ? 'Requerido' : null,
+                        ),
+                        const SizedBox(height: 14),
+                        // Tipo
+                        _Label('Tipo *'),
+                        SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: context.colorBgTertiary,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _type,
+                              isExpanded: true,
+                              dropdownColor: AppColors.bgSecondary,
+                              style: const TextStyle(
+                                  color: AppColors.textPrimary, fontSize: 14),
+                              icon: const Icon(Icons.keyboard_arrow_down,
+                                  color: AppColors.textMuted),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'movilidad',
+                                    child: Text('Movilidad')),
+                                DropdownMenuItem(
+                                    value: 'fortalecimiento',
+                                    child: Text('Fortalecimiento')),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => _type = v!),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        // Pasos
+                        Row(
+                          children: [
+                            const Expanded(child: _Label('Pasos / instrucciones')),
+                            TextButton.icon(
+                              onPressed: () => setState(
+                                  () => _stepCtrl.add(TextEditingController())),
+                              icon: const Icon(Icons.add,
+                                  size: 16, color: AppColors.accentPrimary),
+                              label: const Text('Paso',
+                                  style: TextStyle(
+                                      color: AppColors.accentPrimary,
+                                      fontSize: 12)),
+                              style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ..._stepCtrl.asMap().entries.map((entry) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 24, height: 24,
+                                    margin: const EdgeInsets.only(right: 8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accentPrimary
+                                          .withValues(alpha: 0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text('${entry.key + 1}',
+                                          style: const TextStyle(
+                                              color: AppColors.accentPrimary,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700)),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: entry.value,
+                                      style: const TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 13),
+                                      decoration:
+                                          _deco('Describe el paso ${entry.key + 1}...'),
+                                    ),
+                                  ),
+                                  if (_stepCtrl.length > 1) ...[
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: () => setState(() {
+                                        entry.value.dispose();
+                                        _stepCtrl.removeAt(entry.key);
+                                      }),
+                                      child: const Icon(
+                                          Icons.remove_circle_outline,
+                                          color: AppColors.accentSecondary,
+                                          size: 20),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            )),
+                        const SizedBox(height: 14),
+                        // Beneficios
+                        _Label('Beneficios'),
+                        SizedBox(height: 6),
+                        TextFormField(
+                          controller: _benefitsCtrl,
+                          style: TextStyle(color: context.colorTextPrimary),
+                          decoration: _deco('Ej. Mejora la estabilidad del hombro'),
+                          maxLines: 2,
+                        ),
+                        const SizedBox(height: 14),
+                        // Cuándo usarlo
+                        _Label('Cuándo usarlo'),
+                        SizedBox(height: 6),
+                        TextFormField(
+                          controller: _whenToUseCtrl,
+                          style: TextStyle(color: context.colorTextPrimary),
+                          decoration:
+                              _deco('Ej. Antes de entrenar pecho o espalda'),
+                          maxLines: 2,
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 10),
+                          Text(_error!,
+                              style: const TextStyle(
+                                  color: AppColors.accentSecondary,
+                                  fontSize: 12)),
+                        ],
+                        const SizedBox(height: 20),
+                        FilledButton(
+                          onPressed: _saving ? null : _submit,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.accentPrimary,
+                            minimumSize: const Size(double.infinity, 48),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _saving
+                              ? const SizedBox(
+                                  width: 20, height: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white))
+                              : const Text('Crear ejercicio',
+                                  style: TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Label extends StatelessWidget {
+  final String text;
+  const _Label(this.text);
+  @override
+  Widget build(BuildContext context) => Text(text,
+      style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600));
+}
+
+
+

@@ -1,29 +1,23 @@
 import 'dart:convert';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
+import 'api_client.dart';
 
 class AuthService {
-  static const _storage = FlutterSecureStorage();
-  static const _keyAccessToken = 'access_token';
-  static const _keyRefreshToken = 'refresh_token';
-
   // ── Tokens ──────────────────────────────────────────────────────────────────
 
-  Future<String?> getAccessToken() => _storage.read(key: _keyAccessToken);
-  Future<String?> getRefreshToken() => _storage.read(key: _keyRefreshToken);
+  Future<String?> getAccessToken() => ApiClient.instance.getAccessToken();
+  Future<String?> getRefreshToken() => ApiClient.instance.getRefreshToken();
 
   Future<void> _saveTokens({
     required String accessToken,
     required String refreshToken,
   }) async {
-    await _storage.write(key: _keyAccessToken, value: accessToken);
-    await _storage.write(key: _keyRefreshToken, value: refreshToken);
+    await ApiClient.instance.saveTokens(accessToken, refreshToken);
   }
 
   Future<void> clearTokens() async {
-    await _storage.delete(key: _keyAccessToken);
-    await _storage.delete(key: _keyRefreshToken);
+    await ApiClient.instance.clearTokens();
   }
 
   // ── Login ────────────────────────────────────────────────────────────────────
@@ -41,8 +35,6 @@ class AuthService {
     final body = jsonDecode(res.body) as Map<String, dynamic>;
 
     if (res.statusCode == 200) {
-      // El servidor puede devolver { data: { accessToken, refreshToken, user } }
-      // o en formato plano { accessToken, refreshToken, user }
       final data = (body['data'] ?? body) as Map<String, dynamic>;
       await _saveTokens(
         accessToken: data['accessToken'] as String,
@@ -72,56 +64,85 @@ class AuthService {
       );
     }
     await clearTokens();
+    ApiClient.instance.resetSessionExpiredFlag();
   }
 
   // ── Refresh ──────────────────────────────────────────────────────────────────
 
-  Future<bool> refreshAccessToken() async {
-    final refreshToken = await getRefreshToken();
-    if (refreshToken == null) return false;
-
-    final res = await http.post(
-      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.refresh}'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'refreshToken': refreshToken}),
-    );
-
-    if (res.statusCode == 200) {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      final data = body['data'] as Map<String, dynamic>;
-      await _saveTokens(
-        accessToken: data['accessToken'] as String,
-        refreshToken: data['refreshToken'] as String,
-      );
-      return true;
-    }
-
-    await clearTokens();
-    return false;
-  }
+  Future<bool> refreshAccessToken() => ApiClient.instance.forceRefresh();
 
   // ── Me ───────────────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>?> getMe() async {
-    final token = await getAccessToken();
-    if (token == null) return null;
-
-    final res = await http.get(
-      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.me}'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final res = await ApiClient.instance
+        .get('${ApiConstants.baseUrl}${ApiConstants.me}');
 
     if (res.statusCode == 200) {
       final body = jsonDecode(res.body) as Map<String, dynamic>;
-      return body['data']['user'] as Map<String, dynamic>;
-    }
-
-    if (res.statusCode == 401) {
-      final refreshed = await refreshAccessToken();
-      if (refreshed) return getMe();
+      return body['data'] as Map<String, dynamic>;
     }
 
     return null;
+  }
+
+  // ── Registro con verificación por email ──────────────────────────────────────
+
+  /// Paso 1: envía el código de verificación al correo.
+  Future<void> registerRequest({
+    required String email,
+    required String password,
+    required String name,
+    String? career,
+  }) async {
+    final res = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.registerRequest}'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'password': password,
+        'name': name,
+        if (career != null && career.isNotEmpty) 'career': career,
+      }),
+    );
+
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+
+    if (res.statusCode >= 200 && res.statusCode < 300) return;
+
+    final error = body['error'] as Map<String, dynamic>?;
+    throw AuthException(
+      code: error?['code'] as String? ?? 'unknown',
+      message: error?['message'] as String? ?? 'Error desconocido',
+    );
+  }
+
+  /// Paso 2: verifica el código y crea la cuenta. Retorna el user map y guarda tokens.
+  Future<Map<String, dynamic>> registerVerify({
+    required String email,
+    required String code,
+  }) async {
+    final res = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}${ApiConstants.registerVerify}'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'code': code}),
+    );
+
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      final data = (body['data'] ?? body) as Map<String, dynamic>;
+      await _saveTokens(
+        accessToken: data['accessToken'] as String,
+        refreshToken: data['refreshToken'] as String,
+      );
+      return data['user'] as Map<String, dynamic>;
+    }
+
+    final error = body['error'] as Map<String, dynamic>?;
+    throw AuthException(
+      code: error?['code'] as String? ?? 'unknown',
+      message: error?['message'] as String? ?? 'Error desconocido',
+    );
   }
 
   // ── Validación email UBB ─────────────────────────────────────────────────────

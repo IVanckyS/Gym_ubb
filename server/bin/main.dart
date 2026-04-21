@@ -9,6 +9,15 @@ import '../lib/src/handlers/auth_handler.dart';
 import '../lib/src/handlers/users_handler.dart';
 import '../lib/src/handlers/careers_handler.dart';
 import '../lib/src/handlers/exercises_handler.dart';
+import '../lib/src/handlers/routines_handler.dart';
+import '../lib/src/handlers/joint_exercises_handler.dart';
+import '../lib/src/handlers/workout_handler.dart';
+import '../lib/src/handlers/history_handler.dart';
+import '../lib/src/handlers/rankings_handler.dart';
+import '../lib/src/handlers/articles_handler.dart';
+import '../lib/src/handlers/events_handler.dart';
+import '../lib/src/handlers/notifications_handler.dart';
+import '../lib/src/handlers/lift_submissions_handler.dart';
 import '../lib/src/middleware/auth_middleware.dart';
 import '../lib/src/middleware/cors_middleware.dart';
 import '../lib/src/middleware/security_headers_middleware.dart';
@@ -42,10 +51,18 @@ Future<void> main() async {
   router.mount('/api/v1/users', usersHandler.call);
   router.mount('/api/v1/careers', careersHandler.call);
   router.mount('/api/v1/exercises', exercisesHandler.call);
+  router.mount('/api/v1/routines', routinesHandler.call);
+  router.mount('/api/v1/joint-exercises', jointExercisesHandler.call);
+  router.mount('/api/v1/workout', workoutHandler.call);
+  router.mount('/api/v1/history', historyHandler.call);
+  router.mount('/api/v1/rankings', rankingsHandler.call);
+  router.mount('/api/v1/articles', articlesHandler.call);
+  router.mount('/api/v1/events', eventsHandler.call);
+  router.mount('/api/v1/notifications', notificationsHandler.call);
+  router.mount('/api/v1/lift-submissions', liftSubmissionsHandler.call);
 
-  // Los demás módulos se montan en las siguientes fases:
-  // router.mount('/api/v1/routines',  routinesHandler.call);
-  // ...
+  // Archivos estáticos (imágenes subidas)
+  router.get('/uploads/<path|.*>', _staticFileHandler);
 
   // Fallback 404
   router.all('/<ignored|.*>', (Request req) => notFound('Ruta no encontrada'));
@@ -81,6 +98,23 @@ Future<void> main() async {
 }
 
 // ── Handlers de utilidad ────────────────────────────────────────────────────
+
+Future<Response> _staticFileHandler(Request request, String path) async {
+  final file = File('/uploads/$path');
+  if (!await file.exists()) {
+    return Response.notFound('Archivo no encontrado');
+  }
+  final ext = path.split('.').last.toLowerCase();
+  final mime = switch (ext) {
+    'png'  => 'image/png',
+    'jpg'  => 'image/jpeg',
+    'jpeg' => 'image/jpeg',
+    'gif'  => 'image/gif',
+    'webp' => 'image/webp',
+    _      => 'application/octet-stream',
+  };
+  return Response.ok(file.openRead(), headers: {'Content-Type': mime});
+}
 
 Response _healthHandler(Request request) {
   return jsonOk({

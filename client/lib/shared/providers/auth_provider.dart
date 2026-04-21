@@ -55,6 +55,35 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ── Registro con verificación ────────────────────────────────────────────────
+
+  Future<bool> verifyRegistration({
+    required String email,
+    required String code,
+  }) async {
+    _loading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _user = await _authService.registerVerify(email: email, code: code);
+      _status = AuthStatus.authenticated;
+      _loading = false;
+      notifyListeners();
+      return true;
+    } on AuthException catch (e) {
+      _error = e.message;
+      _loading = false;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _error = 'Error de conexión. Verifica tu red.';
+      _loading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   // ── Logout ───────────────────────────────────────────────────────────────────
 
   Future<void> logout() async {

@@ -62,10 +62,9 @@ class _UsersScreenState extends State<UsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPrimary,
+      backgroundColor: context.colorBgPrimary,
       appBar: AppBar(
         title: const Text('Gestión de usuarios'),
-        backgroundColor: AppColors.bgSecondary,
         leading: IconButton(
           icon: const Icon(Icons.home_outlined),
           tooltip: 'Inicio',
@@ -77,7 +76,7 @@ class _UsersScreenState extends State<UsersScreen> {
             onPressed: _load,
             tooltip: 'Actualizar',
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -97,7 +96,7 @@ class _UsersScreenState extends State<UsersScreen> {
 
   Widget _buildFilters() {
     return Container(
-      color: AppColors.bgSecondary,
+      color: context.colorBgSecondary,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Center(
         child: ConstrainedBox(
@@ -108,10 +107,10 @@ class _UsersScreenState extends State<UsersScreen> {
           Expanded(
             child: TextField(
               controller: _searchCtrl,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: context.colorTextPrimary),
               decoration: InputDecoration(
                 hintText: 'Buscar por nombre o email...',
-                hintStyle: const TextStyle(color: AppColors.textMuted),
+                hintStyle: TextStyle(color: context.colorTextMuted),
                 prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -133,13 +132,13 @@ class _UsersScreenState extends State<UsersScreen> {
               onSubmitted: (_) => _load(),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           // Filtro por rol
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _roleFilter.isEmpty ? 'all' : _roleFilter,
               dropdownColor: AppColors.bgTertiary,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+              style: TextStyle(color: context.colorTextPrimary, fontSize: 14),
               borderRadius: BorderRadius.circular(8),
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('Todos')),
@@ -174,8 +173,8 @@ class _UsersScreenState extends State<UsersScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.error_outline, color: AppColors.accentSecondary, size: 48),
-            const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            SizedBox(height: 12),
+            Text(_error!, style: TextStyle(color: context.colorTextSecondary)),
             const SizedBox(height: 16),
             ElevatedButton(onPressed: _load, child: const Text('Reintentar')),
           ],
@@ -184,13 +183,13 @@ class _UsersScreenState extends State<UsersScreen> {
     }
 
     if (_users.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.people_outline, color: AppColors.textMuted, size: 48),
             SizedBox(height: 12),
-            Text('No se encontraron usuarios', style: TextStyle(color: AppColors.textSecondary)),
+            Text('No se encontraron usuarios', style: TextStyle(color: context.colorTextSecondary)),
           ],
         ),
       );
@@ -202,7 +201,7 @@ class _UsersScreenState extends State<UsersScreen> {
         child: ListView.separated(
       padding: const EdgeInsets.all(24),
       itemCount: _users.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      separatorBuilder: (context, index) => SizedBox(height: 8),
       itemBuilder: (_, i) => _UserCard(
         user: _users[i],
         onEdit: () => _showUserDialog(context, user: _users[i]),
@@ -219,16 +218,15 @@ class _UsersScreenState extends State<UsersScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgSecondary,
         title: Text(
           isActive ? 'Desactivar usuario' : 'Activar usuario',
-          style: const TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: context.colorTextPrimary),
         ),
         content: Text(
           isActive
               ? '¿Desactivar a ${user['name']}? No podrá iniciar sesión.'
               : '¿Activar a ${user['name']}?',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: context.colorTextSecondary),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
@@ -274,19 +272,18 @@ class _UsersScreenState extends State<UsersScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgSecondary,
-        title: const Text('Resetear contraseña',
-            style: TextStyle(color: AppColors.textPrimary)),
+        title: Text('Resetear contraseña',
+            style: TextStyle(color: context.colorTextPrimary)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('Usuario: ${user['name']}',
-                style: const TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 16),
+                style: TextStyle(color: context.colorTextSecondary)),
+            SizedBox(height: 16),
             TextField(
               controller: ctrl,
               obscureText: true,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: context.colorTextPrimary),
               decoration: const InputDecoration(
                 labelText: 'Nueva contraseña',
                 hintText: 'Mínimo 6 caracteres',
@@ -336,7 +333,7 @@ class _UserCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.bgSecondary,
+        color: context.colorBgSecondary,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
@@ -365,7 +362,7 @@ class _UserCard extends StatelessWidget {
             ),
             _RoleBadge(role: role),
             if (!isActive) ...[
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               _StatusBadge(label: 'Inactivo', color: AppColors.accentSecondary),
             ],
           ],
@@ -377,7 +374,7 @@ class _UserCard extends StatelessWidget {
             children: [
               Text(
                 user['email'] as String? ?? '',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                style: TextStyle(color: context.colorTextSecondary, fontSize: 13),
               ),
               if (user['career'] != null && (user['career'] as String).isNotEmpty)
                 Padding(
@@ -385,10 +382,10 @@ class _UserCard extends StatelessWidget {
                   child: Row(
                     children: [
                       const Icon(Icons.school_outlined, size: 12, color: AppColors.textMuted),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         user['career'] as String,
-                        style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                        style: TextStyle(color: context.colorTextMuted, fontSize: 12),
                       ),
                     ],
                   ),
@@ -397,7 +394,7 @@ class _UserCard extends StatelessWidget {
           ),
         ),
         trailing: PopupMenuButton<String>(
-          color: AppColors.bgTertiary,
+          color: context.colorBgTertiary,
           icon: const Icon(Icons.more_vert, color: AppColors.textMuted),
           onSelected: (val) {
             if (val == 'edit') onEdit();
@@ -405,20 +402,20 @@ class _UserCard extends StatelessWidget {
             if (val == 'password') onResetPassword();
           },
           itemBuilder: (_) => [
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'edit',
               child: Row(children: [
-                Icon(Icons.edit_outlined, size: 18, color: AppColors.textPrimary),
+                Icon(Icons.edit_outlined, size: 18, color: context.colorTextPrimary),
                 SizedBox(width: 8),
-                Text('Editar', style: TextStyle(color: AppColors.textPrimary)),
+                Text('Editar', style: TextStyle(color: context.colorTextPrimary)),
               ]),
             ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'password',
               child: Row(children: [
-                Icon(Icons.lock_reset, size: 18, color: AppColors.textPrimary),
+                Icon(Icons.lock_reset, size: 18, color: context.colorTextPrimary),
                 SizedBox(width: 8),
-                Text('Resetear contraseña', style: TextStyle(color: AppColors.textPrimary)),
+                Text('Resetear contraseña', style: TextStyle(color: context.colorTextPrimary)),
               ]),
             ),
             PopupMenuItem(
@@ -596,10 +593,9 @@ class _UserDialogState extends State<_UserDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppColors.bgSecondary,
       title: Text(
         _isEditing ? 'Editar usuario' : 'Nuevo usuario',
-        style: const TextStyle(color: AppColors.textPrimary),
+        style: TextStyle(color: context.colorTextPrimary),
       ),
       content: SizedBox(
         width: 400,
@@ -616,15 +612,15 @@ class _UserDialogState extends State<_UserDialog> {
                 ),
               TextFormField(
                 controller: _nameCtrl,
-                style: const TextStyle(color: AppColors.textPrimary),
+                style: TextStyle(color: context.colorTextPrimary),
                 decoration: const InputDecoration(labelText: 'Nombre completo'),
                 validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               if (!_isEditing) ...[
                 TextFormField(
                   controller: _emailCtrl,
-                  style: const TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: context.colorTextPrimary),
                   decoration: const InputDecoration(labelText: 'Correo institucional'),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return 'Requerido';
@@ -636,11 +632,11 @@ class _UserDialogState extends State<_UserDialog> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 TextFormField(
                   controller: _passwordCtrl,
                   obscureText: true,
-                  style: const TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: context.colorTextPrimary),
                   decoration: const InputDecoration(labelText: 'Contraseña'),
                   validator: (v) =>
                       v == null || v.length < 6 ? 'Mínimo 6 caracteres' : null,
@@ -648,14 +644,14 @@ class _UserDialogState extends State<_UserDialog> {
                 const SizedBox(height: 12),
               ],
               _loadingCareers
-                  ? const Padding(
+                  ? Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
                       child: LinearProgressIndicator(color: AppColors.accentPrimary),
                     )
                   : DropdownButtonFormField<String?>(
                       initialValue: _selectedCareer,
                       dropdownColor: AppColors.bgTertiary,
-                      style: const TextStyle(color: AppColors.textPrimary),
+                      style: TextStyle(color: context.colorTextPrimary),
                       decoration: const InputDecoration(labelText: 'Carrera (opcional)'),
                       items: [
                         const DropdownMenuItem(value: null, child: Text('Sin carrera')),
@@ -666,11 +662,11 @@ class _UserDialogState extends State<_UserDialog> {
                       ],
                       onChanged: (v) => setState(() => _selectedCareer = v),
                     ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _role,
                 dropdownColor: AppColors.bgTertiary,
-                style: const TextStyle(color: AppColors.textPrimary),
+                style: TextStyle(color: context.colorTextPrimary),
                 decoration: const InputDecoration(labelText: 'Rol'),
                 items: const [
                   DropdownMenuItem(value: 'student', child: Text('Estudiante')),
@@ -703,3 +699,9 @@ class _UserDialogState extends State<_UserDialog> {
     );
   }
 }
+
+
+
+
+
+

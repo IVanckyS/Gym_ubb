@@ -11,6 +11,15 @@ final _uuid = Uuid();
 Router get usersHandler {
   final router = Router();
 
+  // GET /api/v1/users/me/stats — estadísticas del usuario autenticado
+  router.get('/me/stats', _meStats);
+
+  // PATCH /api/v1/users/me — editar perfil propio
+  router.patch('/me', _patchMe);
+
+  // PATCH /api/v1/users/me/preferences — guardar preferencias
+  router.patch('/me/preferences', _patchMePreferences);
+
   // GET /api/v1/users/listUsers — lista todos los usuarios (solo admin)
   router.get('/listUsers', _listUsers);
 
@@ -40,6 +49,7 @@ Map<String, dynamic> _userToMap(Map<String, dynamic> row) => {
       'email': row['email'],
       'name': row['name'],
       'career': row['career'],
+      'faculty': row['faculty'],
       'role': row['role'],
       'isActive': row['is_active'],
       'memberSince': row['member_since']?.toString(),
@@ -84,7 +94,7 @@ Future<Response> _listUsers(Request request) async {
   final where = conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')}';
 
   final result = await db.execute(
-    'SELECT id, email, name, career, role::text AS role, '
+    'SELECT id, email, name, career, faculty, role::text AS role, '
     'is_active, member_since, last_login_at, created_at '
     'FROM users $where ORDER BY created_at DESC',
     parameters: params,
@@ -98,7 +108,7 @@ Future<Response> _getUser(Request request, String id) async {
   await requireRole(request, 'admin');
 
   final result = await db.execute(
-    'SELECT id, email, name, career, role::text AS role, '
+    'SELECT id, email, name, career, faculty, role::text AS role, '
     'weight_kg, height_cm, body_fat_pct, units, '
     'notifications_enabled, private_profile, '
     'is_active, member_since, last_login_at, created_at '
@@ -150,7 +160,7 @@ Future<Response> _createUser(Request request) async {
   );
 
   final created = await db.execute(
-    'SELECT id, email, name, career, role::text AS role, '
+    'SELECT id, email, name, career, faculty, role::text AS role, '
     "is_active, member_since, created_at FROM users WHERE id = '$id'::uuid",
   );
 
@@ -206,7 +216,7 @@ Future<Response> _updateUser(Request request, String id) async {
   );
 
   final updated = await db.execute(
-    'SELECT id, email, name, career, role::text AS role, '
+    'SELECT id, email, name, career, faculty, role::text AS role, '
     "is_active, member_since, last_login_at, created_at FROM users WHERE id = '$id'::uuid",
   );
 
@@ -251,4 +261,231 @@ Future<Response> _resetPassword(Request request, String id) async {
   );
 
   return jsonOk({'message': 'Contraseña actualizada'});
+}
+
+// ── Endpoints del usuario autenticado ─────────────────────────────────────────
+
+Future<Response> _meStats(Request request) async {
+  final claims = await requireAuth(request);
+  final userId = claims['sub'] as String;
+
+  // Total de sesiones (completed + partial cuentan)
+  final sessionsResult = await db.execute(
+    "SELECT COUNT(*) AS total FROM workout_sessions "
+    "WHERE user_id = '$userId'::uuid "
+    "AND status::text IN ('completed', 'partial')",
+  );
+  final totalWorkouts = (sessionsResult.first.toColumnMap()['total'] as int?) ?? 0;
+
+  // Sesiones del mes actual (completed + partial)
+  final monthResult = await db.execute(
+    "SELECT COUNT(*) AS total FROM workout_sessions "
+    "WHERE user_id = '$userId'::uuid "
+    "AND status::text IN ('completed', 'partial') "
+    "AND DATE_TRUNC('month', ended_at) = DATE_TRUNC('month', NOW())",
+  );
+  final monthWorkouts = (monthResult.first.toColumnMap()['total'] as int?) ?? 0;
+
+  // Total de récords personales
+  final recordsResult = await db.execute(
+    "SELECT COUNT(*) AS total FROM personal_records WHERE user_id = '$userId'::uuid",
+  );
+  final totalRecords = (recordsResult.first.toColumnMap()['total'] as int?) ?? 0;
+
+  // Racha actual: días consecutivos con al menos una sesión (completed|partial)
+  final datesResult = await db.execute(
+    "SELECT DISTINCT DATE(ended_at) AS d FROM workout_sessions "
+    "WHERE user_id = '$userId'::uuid "
+    "AND status::text IN ('completed', 'partial') "
+    "ORDER BY d DESC",
+  );
+  int streak = 0;
+  if (datesResult.isNotEmpty) {
+    final dates = datesResult
+        .map((r) => r.toColumnMap()['d'])
+        .whereType<DateTime>()
+        .toList();
+    if (dates.isNotEmpty) {
+      var expected = DateTime.now().toLocal();
+      // Si la última sesión fue ayer o hoy, contar racha
+      final lastDate = DateTime(dates[0].year, dates[0].month, dates[0].day);
+      final today = DateTime(expected.year, expected.month, expected.day);
+      final yesterday = today.subtract(const Duration(days: 1));
+      if (lastDate == today || lastDate == yesterday) {
+        expected = lastDate;
+        for (final raw in dates) {
+          final d = DateTime(raw.year, raw.month, raw.day);
+          if (d == expected) {
+            streak++;
+            expected = expected.subtract(const Duration(days: 1));
+          } else {
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return jsonOk({
+    'totalWorkouts': totalWorkouts,
+    'monthWorkouts': monthWorkouts,
+    'totalRecords': totalRecords,
+    'currentStreak': streak,
+  });
+}
+
+Future<Response> _patchMe(Request request) async {
+  final claims = await requireAuth(request);
+  final userId = claims['sub'] as String;
+
+  final body = await parseBody(request);
+
+  final allowed = ['name', 'career', 'faculty', 'weightKg', 'heightCm', 'bodyFatPct'];
+  final hasUpdate = allowed.any((k) => body.containsKey(k));
+  if (!hasUpdate) return badRequest('No hay campos para actualizar');
+
+  final setClauses = <String>[];
+  final params = <Object?>[];
+  var idx = 1;
+
+  if (body.containsKey('name')) {
+    final name = (body['name'] as String? ?? '').trim();
+    if (name.isEmpty) return badRequest('El nombre no puede estar vacío');
+    setClauses.add('name = \$$idx');
+    params.add(name);
+    idx++;
+  }
+
+  if (body.containsKey('career')) {
+    final career = body['career'];
+    if (career == null) {
+      setClauses.add('career = NULL');
+    } else {
+      setClauses.add('career = \$$idx');
+      params.add(career.toString());
+      idx++;
+    }
+  }
+
+  if (body.containsKey('faculty')) {
+    final faculty = body['faculty'];
+    if (faculty == null) {
+      setClauses.add('faculty = NULL');
+    } else {
+      setClauses.add('faculty = \$$idx');
+      params.add(faculty.toString());
+      idx++;
+    }
+  }
+
+  if (body.containsKey('weightKg')) {
+    final w = body['weightKg'];
+    if (w == null) {
+      setClauses.add('weight_kg = NULL');
+    } else {
+      setClauses.add('weight_kg = \$$idx');
+      params.add((w is num) ? w.toDouble() : double.tryParse(w.toString()));
+      idx++;
+    }
+  }
+
+  if (body.containsKey('heightCm')) {
+    final h = body['heightCm'];
+    if (h == null) {
+      setClauses.add('height_cm = NULL');
+    } else {
+      setClauses.add('height_cm = \$$idx');
+      params.add((h is num) ? h.toInt() : int.tryParse(h.toString()));
+      idx++;
+    }
+  }
+
+  if (body.containsKey('bodyFatPct')) {
+    final bf = body['bodyFatPct'];
+    if (bf == null) {
+      setClauses.add('body_fat_pct = NULL');
+    } else {
+      setClauses.add('body_fat_pct = \$$idx');
+      params.add((bf is num) ? bf.toDouble() : double.tryParse(bf.toString()));
+      idx++;
+    }
+  }
+
+  await db.execute(
+    "UPDATE users SET ${setClauses.join(', ')}, updated_at = NOW() "
+    "WHERE id = '$userId'::uuid",
+    parameters: params.isEmpty ? null : params,
+  );
+
+  final updated = await db.execute(
+    'SELECT id, email, name, career, faculty, role::text AS role, '
+    'weight_kg, height_cm, body_fat_pct, units, '
+    'notifications_enabled, private_profile, '
+    'is_active, member_since, last_login_at, created_at '
+    "FROM users WHERE id = '$userId'::uuid",
+  );
+
+  if (updated.isEmpty) return notFound('Usuario no encontrado');
+
+  final row = updated.first.toColumnMap();
+  return jsonOk({
+    'user': {
+      ..._userToMap(row),
+      'weightKg': row['weight_kg'],
+      'heightCm': row['height_cm'],
+      'bodyFatPct': row['body_fat_pct'],
+      'units': row['units'],
+      'notificationsEnabled': row['notifications_enabled'],
+      'privateProfile': row['private_profile'],
+    },
+  });
+}
+
+Future<Response> _patchMePreferences(Request request) async {
+  final claims = await requireAuth(request);
+  final userId = claims['sub'] as String;
+
+  final body = await parseBody(request);
+
+  final allowed = ['units', 'notificationsEnabled', 'privateProfile', 'theme'];
+  final hasUpdate = allowed.any((k) => body.containsKey(k));
+  if (!hasUpdate) return badRequest('No hay preferencias para actualizar');
+
+  final setClauses = <String>[];
+  final params = <Object?>[];
+  var idx = 1;
+
+  if (body.containsKey('units')) {
+    final units = (body['units'] as String? ?? '').trim();
+    if (units != 'kg' && units != 'lbs') return badRequest('Unidades inválidas. Use kg o lbs');
+    setClauses.add('units = \$$idx');
+    params.add(units);
+    idx++;
+  }
+
+  if (body.containsKey('notificationsEnabled')) {
+    final val = body['notificationsEnabled'];
+    setClauses.add('notifications_enabled = \$$idx');
+    params.add(val == true || val == 'true');
+    idx++;
+  }
+
+  if (body.containsKey('privateProfile')) {
+    final val = body['privateProfile'];
+    setClauses.add('private_profile = \$$idx');
+    params.add(val == true || val == 'true');
+    idx++;
+  }
+
+  // theme se guarda solo en cliente (SharedPrefs); ignorarlo en backend silenciosamente
+
+  if (setClauses.isEmpty) return jsonOk({'message': 'Preferencias guardadas'});
+
+  await db.execute(
+    "UPDATE users SET ${setClauses.join(', ')}, updated_at = NOW() "
+    "WHERE id = '$userId'::uuid",
+    parameters: params,
+  );
+
+  return jsonOk({'message': 'Preferencias actualizadas'});
 }

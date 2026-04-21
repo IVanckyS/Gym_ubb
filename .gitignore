@@ -1,5 +1,6 @@
 # Claude Code (memoria local, no subir)
 .claude/
+CLAUDE.md
 
 # Secretos — NUNCA subir a git
 .env

@@ -24,6 +24,9 @@ dependencies:
   # Utilities
   uuid: ^4.4.0
 
+  # Email (verificación de registro)
+  mailer: ^6.1.2
+
 dev_dependencies:
   lints: ^3.0.0
   test: ^1.24.0

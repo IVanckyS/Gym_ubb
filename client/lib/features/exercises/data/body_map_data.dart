@@ -59,7 +59,12 @@ class JointExercise {
 class BodyMapData {
   BodyMapData._();
 
-  // viewBox: 200 × 338
+  // viewBox: 658 × 1024
+  // Key anchors from SVG path data:
+  //   Shoulders: left x≈242 y≈192, right x≈403 y≈192
+  //   Left arm at elbow: x≈88 y≈511  (arm angles outward-downward)
+  //   Right arm at elbow (mirrored): x≈570 y≈511
+  //   Body center: x=329
 
   static const Map<String, Color> muscleColors = {
     'Pecho': Color(0xFF3b82f6),
@@ -71,7 +76,6 @@ class BodyMapData {
     'Glúteos': Color(0xFFef4444),
   };
 
-  // Mapping from DB enum value to display name
   static const Map<String, String> muscleGroupDisplayName = {
     'pecho': 'Pecho',
     'espalda': 'Espalda',
@@ -104,403 +108,267 @@ class BodyMapData {
   };
 
   // ── Muscle zones — FRONT ──────────────────────────────────────────────────
+  // Arms angle out from shoulder (x≈242/403, y≈192) to elbow (x≈88/570, y≈511)
+  // giving a diagonal slope of ~Δx=-51/+51 per 100px of y.
 
   static const List<MuscleZone> zonesFront = [
+    // Pectorales (entre clavículas y línea submamaria)
     MuscleZone(
       id: 'chest_left',
       name: 'Pectoral izquierdo',
       muscleGroup: 'Pecho',
-      points: '60,58 100,56 100,97 60,93',
+      points: '222,148 329,143 329,258 222,262',
     ),
     MuscleZone(
       id: 'chest_right',
       name: 'Pectoral derecho',
       muscleGroup: 'Pecho',
-      points: '100,56 140,58 140,93 100,97',
+      points: '329,143 436,148 436,262 329,258',
     ),
+    // Deltoides anterior (cubre la cabeza del hombro, frontal)
     MuscleZone(
       id: 'shoulder_left',
       name: 'Hombro izquierdo',
       muscleGroup: 'Hombros',
-      points: '43,50 63,44 65,74 44,76',
+      points: '188,128 242,118 252,205 196,215',
     ),
     MuscleZone(
       id: 'shoulder_right',
       name: 'Hombro derecho',
       muscleGroup: 'Hombros',
-      points: '137,44 157,50 156,76 135,74',
+      points: '416,118 470,128 462,215 406,205',
     ),
+    // Bíceps – zona del brazo superior, siguiendo la diagonal del brazo
     MuscleZone(
       id: 'bicep_left',
       name: 'Bíceps izquierdo',
       muscleGroup: 'Brazos',
-      points: '39,73 59,70 62,122 40,125',
+      points: '196,210 242,200 200,400 155,408',
     ),
     MuscleZone(
       id: 'bicep_right',
       name: 'Bíceps derecho',
       muscleGroup: 'Brazos',
-      points: '141,70 161,73 160,125 138,122',
+      points: '416,200 462,210 503,408 458,400',
     ),
+    // Antebrazo – continuación diagonal hasta la muñeca
     MuscleZone(
       id: 'forearm_left',
       name: 'Antebrazo izquierdo',
       muscleGroup: 'Brazos',
-      points: '37,125 61,122 61,168 38,168',
+      points: '155,408 200,400 163,538 118,542',
     ),
     MuscleZone(
       id: 'forearm_right',
       name: 'Antebrazo derecho',
       muscleGroup: 'Brazos',
-      points: '139,122 163,125 162,168 139,168',
+      points: '458,400 503,408 540,542 495,538',
     ),
+    // Abdominales (zona central del torso)
     MuscleZone(
       id: 'abs',
       name: 'Abdominales',
       muscleGroup: 'Core',
-      points: '63,97 137,97 135,160 65,160',
+      points: '228,258 430,258 424,462 234,462',
     ),
+    // Oblicuos (laterales del torso)
     MuscleZone(
       id: 'oblique_left',
       name: 'Oblicuo izquierdo',
       muscleGroup: 'Core',
-      points: '46,84 63,80 65,160 47,150',
+      points: '190,210 232,202 240,462 196,445',
     ),
     MuscleZone(
       id: 'oblique_right',
       name: 'Oblicuo derecho',
       muscleGroup: 'Core',
-      points: '137,80 154,84 153,150 135,160',
+      points: '426,202 468,210 462,445 418,462',
     ),
+    // Flexores de cadera / inguinal
     MuscleZone(
       id: 'hipflexor_left',
       name: 'Flexor cadera izquierdo',
       muscleGroup: 'Piernas',
-      points: '65,160 100,160 100,183 66,183',
+      points: '234,462 329,462 329,528 237,528',
     ),
     MuscleZone(
       id: 'hipflexor_right',
       name: 'Flexor cadera derecho',
       muscleGroup: 'Piernas',
-      points: '100,160 135,160 134,183 100,183',
+      points: '329,462 424,462 421,528 329,528',
     ),
+    // Cuádriceps
     MuscleZone(
       id: 'quad_left',
       name: 'Cuádriceps izquierdo',
       muscleGroup: 'Piernas',
-      points: '66,183 100,183 100,256 68,256',
+      points: '237,528 329,528 329,762 242,762',
     ),
     MuscleZone(
       id: 'quad_right',
       name: 'Cuádriceps derecho',
       muscleGroup: 'Piernas',
-      points: '100,183 134,183 132,256 100,256',
+      points: '329,528 421,528 416,762 329,762',
     ),
+    // Tibial anterior / parte frontal de la pierna baja
     MuscleZone(
       id: 'tibialis_left',
       name: 'Tibial izquierdo',
       muscleGroup: 'Piernas',
-      points: '68,264 96,264 94,318 69,318',
+      points: '244,778 314,778 310,948 248,948',
     ),
     MuscleZone(
       id: 'tibialis_right',
       name: 'Tibial derecho',
       muscleGroup: 'Piernas',
-      points: '104,264 132,264 131,318 106,318',
+      points: '344,778 414,778 410,948 348,948',
     ),
   ];
 
   // ── Muscle zones — BACK ───────────────────────────────────────────────────
 
   static const List<MuscleZone> zonesBack = [
+    // Trapecio (parte superior de la espalda, entre hombros)
     MuscleZone(
       id: 'trapezius',
       name: 'Trapecio',
       muscleGroup: 'Espalda',
-      points: '65,52 135,52 128,82 72,82',
+      points: '228,135 430,135 412,215 246,215',
     ),
+    // Dorsal ancho (costado de la espalda – gran superficie)
     MuscleZone(
       id: 'lat_left',
       name: 'Dorsal izquierdo',
       muscleGroup: 'Espalda',
-      points: '54,78 96,78 98,152 54,138',
+      points: '188,208 320,208 324,445 192,412',
     ),
     MuscleZone(
       id: 'lat_right',
       name: 'Dorsal derecho',
       muscleGroup: 'Espalda',
-      points: '104,78 146,78 146,138 102,152',
+      points: '338,208 470,208 466,412 334,445',
     ),
+    // Deltoides posterior
     MuscleZone(
       id: 'reardelt_left',
       name: 'Deltoides posterior izquierdo',
       muscleGroup: 'Hombros',
-      points: '43,50 65,44 66,78 44,76',
+      points: '188,120 242,110 252,212 196,220',
     ),
     MuscleZone(
       id: 'reardelt_right',
       name: 'Deltoides posterior derecho',
       muscleGroup: 'Hombros',
-      points: '135,44 157,50 156,76 134,78',
+      points: '416,110 470,120 462,220 406,212',
     ),
+    // Tríceps (brazo posterior, misma diagonal que bíceps)
     MuscleZone(
       id: 'tricep_left',
       name: 'Tríceps izquierdo',
       muscleGroup: 'Brazos',
-      points: '39,72 59,68 62,120 40,123',
+      points: '196,215 242,205 200,398 155,406',
     ),
     MuscleZone(
       id: 'tricep_right',
       name: 'Tríceps derecho',
       muscleGroup: 'Brazos',
-      points: '141,68 161,72 160,123 138,120',
+      points: '416,205 462,215 503,406 458,398',
     ),
+    // Antebrazo posterior
     MuscleZone(
       id: 'forearm_left_back',
       name: 'Antebrazo izquierdo',
       muscleGroup: 'Brazos',
-      points: '37,123 61,120 61,165 38,165',
+      points: '155,406 200,398 163,532 118,536',
     ),
     MuscleZone(
       id: 'forearm_right_back',
       name: 'Antebrazo derecho',
       muscleGroup: 'Brazos',
-      points: '139,120 163,123 162,165 139,165',
+      points: '458,398 503,406 540,536 495,532',
     ),
+    // Erector espinal (columna central posterior)
     MuscleZone(
       id: 'erector',
       name: 'Erector espinal',
       muscleGroup: 'Espalda',
-      points: '84,96 116,96 116,158 84,158',
+      points: '282,248 376,248 376,458 282,458',
     ),
+    // Glúteos
     MuscleZone(
       id: 'glute_left',
       name: 'Glúteo izquierdo',
       muscleGroup: 'Glúteos',
-      points: '65,158 100,158 100,196 66,196',
+      points: '234,458 329,458 329,572 237,572',
     ),
     MuscleZone(
       id: 'glute_right',
       name: 'Glúteo derecho',
       muscleGroup: 'Glúteos',
-      points: '100,158 135,158 134,196 100,196',
+      points: '329,458 424,458 421,572 329,572',
     ),
+    // Isquiotibiales
     MuscleZone(
       id: 'hamstring_left',
       name: 'Isquiotibial izquierdo',
       muscleGroup: 'Piernas',
-      points: '67,196 100,196 100,256 69,256',
+      points: '237,572 329,572 329,762 242,762',
     ),
     MuscleZone(
       id: 'hamstring_right',
       name: 'Isquiotibial derecho',
       muscleGroup: 'Piernas',
-      points: '100,196 133,196 131,256 100,256',
+      points: '329,572 421,572 416,762 329,762',
     ),
+    // Gemelos
     MuscleZone(
       id: 'calf_left',
       name: 'Gemelo izquierdo',
       muscleGroup: 'Piernas',
-      points: '68,264 97,264 95,318 70,318',
+      points: '244,778 313,778 309,948 248,948',
     ),
     MuscleZone(
       id: 'calf_right',
       name: 'Gemelo derecho',
       muscleGroup: 'Piernas',
-      points: '103,264 132,264 130,318 105,318',
+      points: '345,778 414,778 410,948 349,948',
     ),
   ];
 
   // ── Joint points — FRONT ──────────────────────────────────────────────────
 
   static const List<JointPoint> jointsFront = [
-    JointPoint(
-      id: 'shoulder_left',
-      name: 'Hombro izquierdo',
-      x: 57,
-      y: 60,
-      family: 'shoulder',
-    ),
-    JointPoint(
-      id: 'shoulder_right',
-      name: 'Hombro derecho',
-      x: 143,
-      y: 60,
-      family: 'shoulder',
-    ),
-    JointPoint(
-      id: 'elbow_left',
-      name: 'Codo izquierdo',
-      x: 40,
-      y: 126,
-      family: 'elbow',
-    ),
-    JointPoint(
-      id: 'elbow_right',
-      name: 'Codo derecho',
-      x: 160,
-      y: 126,
-      family: 'elbow',
-    ),
-    JointPoint(
-      id: 'wrist_left',
-      name: 'Muñeca izquierda',
-      x: 38,
-      y: 168,
-      family: 'wrist',
-    ),
-    JointPoint(
-      id: 'wrist_right',
-      name: 'Muñeca derecha',
-      x: 162,
-      y: 168,
-      family: 'wrist',
-    ),
-    JointPoint(
-      id: 'hip_left',
-      name: 'Cadera izquierda',
-      x: 79,
-      y: 178,
-      family: 'hip',
-    ),
-    JointPoint(
-      id: 'hip_right',
-      name: 'Cadera derecha',
-      x: 121,
-      y: 178,
-      family: 'hip',
-    ),
-    JointPoint(
-      id: 'knee_left',
-      name: 'Rodilla izquierda',
-      x: 77,
-      y: 260,
-      family: 'knee',
-    ),
-    JointPoint(
-      id: 'knee_right',
-      name: 'Rodilla derecha',
-      x: 123,
-      y: 260,
-      family: 'knee',
-    ),
-    JointPoint(
-      id: 'ankle_left',
-      name: 'Tobillo izquierdo',
-      x: 76,
-      y: 318,
-      family: 'ankle',
-    ),
-    JointPoint(
-      id: 'ankle_right',
-      name: 'Tobillo derecho',
-      x: 124,
-      y: 318,
-      family: 'ankle',
-    ),
+    JointPoint(id: 'shoulder_left',  name: 'Hombro izquierdo',  x: 225, y: 192, family: 'shoulder'),
+    JointPoint(id: 'shoulder_right', name: 'Hombro derecho',    x: 433, y: 192, family: 'shoulder'),
+    JointPoint(id: 'elbow_left',     name: 'Codo izquierdo',    x: 168, y: 410, family: 'elbow'),
+    JointPoint(id: 'elbow_right',    name: 'Codo derecho',      x: 490, y: 410, family: 'elbow'),
+    JointPoint(id: 'wrist_left',     name: 'Muñeca izquierda',  x: 132, y: 542, family: 'wrist'),
+    JointPoint(id: 'wrist_right',    name: 'Muñeca derecha',    x: 526, y: 542, family: 'wrist'),
+    JointPoint(id: 'hip_left',       name: 'Cadera izquierda',  x: 268, y: 520, family: 'hip'),
+    JointPoint(id: 'hip_right',      name: 'Cadera derecha',    x: 390, y: 520, family: 'hip'),
+    JointPoint(id: 'knee_left',      name: 'Rodilla izquierda', x: 256, y: 770, family: 'knee'),
+    JointPoint(id: 'knee_right',     name: 'Rodilla derecha',   x: 402, y: 770, family: 'knee'),
+    JointPoint(id: 'ankle_left',     name: 'Tobillo izquierdo', x: 252, y: 955, family: 'ankle'),
+    JointPoint(id: 'ankle_right',    name: 'Tobillo derecho',   x: 406, y: 955, family: 'ankle'),
   ];
 
   // ── Joint points — BACK ───────────────────────────────────────────────────
 
   static const List<JointPoint> jointsBack = [
-    JointPoint(
-      id: 'cervical',
-      name: 'Cervical',
-      x: 100,
-      y: 46,
-      family: 'cervical',
-    ),
-    JointPoint(
-      id: 'shoulder_left_back',
-      name: 'Hombro izquierdo',
-      x: 58,
-      y: 62,
-      family: 'shoulder',
-    ),
-    JointPoint(
-      id: 'shoulder_right_back',
-      name: 'Hombro derecho',
-      x: 142,
-      y: 62,
-      family: 'shoulder',
-    ),
-    JointPoint(
-      id: 'elbow_left_back',
-      name: 'Codo izquierdo',
-      x: 40,
-      y: 123,
-      family: 'elbow',
-    ),
-    JointPoint(
-      id: 'elbow_right_back',
-      name: 'Codo derecho',
-      x: 160,
-      y: 123,
-      family: 'elbow',
-    ),
-    JointPoint(
-      id: 'wrist_left_back',
-      name: 'Muñeca izquierda',
-      x: 38,
-      y: 165,
-      family: 'wrist',
-    ),
-    JointPoint(
-      id: 'wrist_right_back',
-      name: 'Muñeca derecha',
-      x: 162,
-      y: 165,
-      family: 'wrist',
-    ),
-    JointPoint(
-      id: 'lumbar',
-      name: 'Lumbar',
-      x: 100,
-      y: 148,
-      family: 'lumbar',
-    ),
-    JointPoint(
-      id: 'hip_left_back',
-      name: 'Cadera izquierda',
-      x: 80,
-      y: 180,
-      family: 'hip',
-    ),
-    JointPoint(
-      id: 'hip_right_back',
-      name: 'Cadera derecha',
-      x: 120,
-      y: 180,
-      family: 'hip',
-    ),
-    JointPoint(
-      id: 'knee_left_back',
-      name: 'Rodilla izquierda',
-      x: 78,
-      y: 258,
-      family: 'knee',
-    ),
-    JointPoint(
-      id: 'knee_right_back',
-      name: 'Rodilla derecha',
-      x: 122,
-      y: 258,
-      family: 'knee',
-    ),
-    JointPoint(
-      id: 'ankle_left_back',
-      name: 'Tobillo izquierdo',
-      x: 77,
-      y: 318,
-      family: 'ankle',
-    ),
-    JointPoint(
-      id: 'ankle_right_back',
-      name: 'Tobillo derecho',
-      x: 123,
-      y: 318,
-      family: 'ankle',
-    ),
+    JointPoint(id: 'cervical',          name: 'Cervical',             x: 329, y: 120, family: 'cervical'),
+    JointPoint(id: 'shoulder_left_back',  name: 'Hombro izquierdo',   x: 225, y: 198, family: 'shoulder'),
+    JointPoint(id: 'shoulder_right_back', name: 'Hombro derecho',     x: 433, y: 198, family: 'shoulder'),
+    JointPoint(id: 'elbow_left_back',   name: 'Codo izquierdo',       x: 168, y: 408, family: 'elbow'),
+    JointPoint(id: 'elbow_right_back',  name: 'Codo derecho',         x: 490, y: 408, family: 'elbow'),
+    JointPoint(id: 'wrist_left_back',   name: 'Muñeca izquierda',     x: 132, y: 535, family: 'wrist'),
+    JointPoint(id: 'wrist_right_back',  name: 'Muñeca derecha',       x: 526, y: 535, family: 'wrist'),
+    JointPoint(id: 'lumbar',            name: 'Lumbar',               x: 329, y: 450, family: 'lumbar'),
+    JointPoint(id: 'hip_left_back',     name: 'Cadera izquierda',     x: 268, y: 522, family: 'hip'),
+    JointPoint(id: 'hip_right_back',    name: 'Cadera derecha',       x: 390, y: 522, family: 'hip'),
+    JointPoint(id: 'knee_left_back',    name: 'Rodilla izquierda',    x: 256, y: 770, family: 'knee'),
+    JointPoint(id: 'knee_right_back',   name: 'Rodilla derecha',      x: 402, y: 770, family: 'knee'),
+    JointPoint(id: 'ankle_left_back',   name: 'Tobillo izquierdo',    x: 252, y: 955, family: 'ankle'),
+    JointPoint(id: 'ankle_right_back',  name: 'Tobillo derecho',      x: 406, y: 955, family: 'ankle'),
   ];
 
   // ── Joint exercises ───────────────────────────────────────────────────────

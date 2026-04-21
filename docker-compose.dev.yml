@@ -55,6 +55,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production_min_64_chars_xxxx}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-gym-ubb}
       ALLOWED_ORIGIN: "*"
+    env_file:
+      - .env
     volumes:
       - ./server:/app                    # Monta fuente para edición en vivo
       - server_dart_tool:/app/.dart_tool # Caché de pub separado del host
