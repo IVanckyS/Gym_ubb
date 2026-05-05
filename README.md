@@ -1,4 +1,4 @@
-﻿# GymUBB
+# GymUBB
 
 App móvil institucional para el gimnasio de la Universidad del Bío-Bío. Permite a estudiantes, profesores y funcionarios gestionar rutinas, registrar sesiones de entrenamiento, consultar rankings, acceder a contenido educativo y mucho más.
 
@@ -35,32 +35,33 @@ gym_ubb/
 │   ├── bin/main.dart
 │   └── lib/src/
 │       ├── handlers/
-│       │   ├── auth_handler.dart          ← login, logout, refresh, me, register OTP
-│       │   ├── users_handler.dart         ← CRUD + /me + /me/stats + /me/preferences
+│       │   ├── auth_handler.dart             ← login, logout, refresh, me, register OTP
+│       │   ├── users_handler.dart            ← CRUD + /me + /me/stats + /me/preferences
 │       │   ├── careers_handler.dart
-│       │   ├── exercises_handler.dart     ← catálogo, filtros, subida de imagen
-│       │   ├── routines_handler.dart      ← CRUD + días + copyRoutine + setDefault
+│       │   ├── exercises_handler.dart        ← catálogo, filtros, subida de imagen
+│       │   ├── routines_handler.dart         ← CRUD + días + copyRoutine + setDefault
 │       │   ├── joint_exercises_handler.dart
-│       │   ├── workout_handler.dart       ← sesión activa, logSet, finish, week-status
-│       │   ├── history_handler.dart       ← progreso, récords, medidas corporales
-│       │   ├── rankings_handler.dart      ← leaderboard, validación PRs
-│       │   ├── articles_handler.dart      ← catálogo, favoritos, CRUD
-│       │   ├── events_handler.dart        ← eventos, intereses, CRUD
-│       │   ├── notifications_handler.dart ← sistema, unread, marcar leída
-│       │   └── lift_submissions_handler.dart ← postulaciones, aprobar/rechazar
+│       │   ├── workout_handler.dart          ← sesión activa, logSet, finish, week-status, calendar
+│       │   ├── history_handler.dart          ← progreso, récords, medidas corporales
+│       │   ├── rankings_handler.dart         ← leaderboard, validación PRs
+│       │   ├── articles_handler.dart         ← catálogo, favoritos, CRUD
+│       │   ├── events_handler.dart           ← eventos, intereses, CRUD
+│       │   ├── notifications_handler.dart    ← sistema, unread, marcar leída
+│       │   ├── lift_submissions_handler.dart ← postulaciones, aprobar/rechazar
+│       │   └── hiit_handler.dart             ← plantillas HIIT + sesiones completadas
 │       ├── middleware/
 │       │   ├── auth_middleware.dart
 │       │   ├── cors_middleware.dart
 │       │   └── security_headers_middleware.dart
 │       ├── services/
 │       │   ├── jwt_service.dart
-│       │   ├── email_service.dart         ← envío OTP por SMTP (fallback a logs en dev)
+│       │   ├── email_service.dart            ← envío OTP por SMTP (fallback a logs en dev)
 │       │   └── rate_limit_service.dart
 │       ├── database/
 │       │   ├── connection.dart
 │       │   ├── redis_client.dart
 │       │   ├── schema.dart
-│       │   └── seed.dart
+│       │   └── seed.dart                     ← limpia y resiembra ejercicios en cada arranque dev
 │       └── utils/response.dart
 │
 └── client/
@@ -68,7 +69,8 @@ gym_ubb/
         ├── core/
         │   ├── theme/app_theme.dart
         │   ├── router/app_router.dart
-        │   └── constants/
+        │   ├── constants/
+        │   └── widgets/                      ← FadeSlide, GymIcon, SectionBanner
         ├── shared/
         │   ├── providers/
         │   ├── services/
@@ -80,6 +82,7 @@ gym_ubb/
             ├── exercises/
             ├── routines/
             ├── workout/
+            ├── hiit/           ← data · engine · presentation (5 modos)
             ├── history/
             ├── rankings/
             ├── education/
@@ -113,24 +116,26 @@ Flujo de registro:
 | `users` | Perfil, rol, datos físicos, preferencias |
 | `careers` | Carreras UBB (soft delete) |
 | `refresh_tokens` | Rotación + cadena replaced_by |
-| `exercises` | Catálogo muscular: grupo, dificultad, tipo (dinámico/isométrico) |
+| `exercises` | Catálogo muscular: grupo, dificultad, tipo (dinámico/isométrico/calistenia), is_rankeable |
 | `routines` | Rutinas personales y públicas |
 | `routine_days` | Días de una rutina |
-| `routine_day_exercises` | Ejercicios por día con sets/reps/descanso |
+| `routine_day_exercises` | Ejercicios por día con sets/reps/descanso + duration_seconds (isométricos) |
 | `joint_exercises` | Ejercicios de articulaciones (8 familias) |
 | `workout_sessions` | Sesiones activas e historial |
 | `workout_sets` | Series completadas por sesión |
 | `personal_records` | PR por usuario+ejercicio+reps (auto-upsert) |
 | `body_measurements` | Medidas corporales por fecha |
-| `articles` | Artículos educativos con tags |
+| `articles` | Artículos educativos con tags, image_url, bibliography, resources JSONB |
 | `article_favorites` | Favoritos por usuario |
-| `events` | Eventos UBB |
+| `events` | Eventos UBB con image_url y end_date |
 | `event_interests` | Intereses de usuarios en eventos |
 | `app_notifications` | Notificaciones del sistema |
 | `notification_reads` | Registro de lectura |
 | `lift_submissions` | Postulaciones de récords (video, weight, reps, status) |
 | `lift_submission_images` | Imágenes adicionales de postulaciones |
 | `security_audit_log` | Auditoría de acciones sensibles |
+| `hiit_workouts` | Plantillas HIIT (modo, config JSONB, owner) |
+| `hiit_sessions` | Sesiones HIIT completadas (modo, rondas, duración) |
 
 ---
 
@@ -157,33 +162,41 @@ Flujo de registro:
 | Catálogo ejercicios con filtros múltiples OR | ✅ | ✅ |
 | Ejercicios: crear/editar con imagen y pasos | ✅ | ✅ |
 | Ejercicios isométricos (badge, input duración seg) | ✅ | ✅ |
-| Mapa corporal SVG interactivo | — | ✅ |
+| Ejercicios de peso corporal / calistenia (badge teal, columna lastre) | ✅ | ✅ |
+| Mapa corporal SVG interactivo (muscular + articular, 4 vistas) | — | ✅ |
 | Ejercicios de articulaciones (8 familias) | ✅ | ✅ |
-| Home / Dashboard (stats reales + mis marcas) | ✅ | ✅ |
+| Home / Dashboard (stats reales + mis marcas pinned) | ✅ | ✅ |
 | Rutinas CRUD + wizard 3 pasos | ✅ | ✅ |
 | Rutinas: copiar pública al espacio personal | ✅ | ✅ |
 | Rutinas: marcar como por defecto | ✅ | ✅ |
 | Rutinas: week-status (días completados/parciales) | ✅ | ✅ |
 | Rutinas: adelantar / recuperar día | — | ✅ |
 | Sesión activa (timer, series, timer descanso) | ✅ | ✅ |
-| Sesión: sonidos countdown | — | ✅ |
+| Sesión: sonidos countdown + columna lastre calistenia | — | ✅ |
 | Resumen post-sesión | ✅ | ✅ |
 | Historial de sesiones (paginado, lazy load) | ✅ | ✅ |
 | Historial: gráfico progreso por ejercicio | ✅ | ✅ |
 | Historial: medidas corporales CRUD | ✅ | ✅ |
 | Historial: récords personales (mejor PR) | ✅ | ✅ |
-| Exportar historial PDF (récords + medidas) | — | ✅ |
+| Historial: calendario mensual (completado/parcial/perdido/libre) | ✅ | ✅ |
+| Exportar historial PDF (récords + medidas, respeta kg/lbs) | — | ✅ |
 | Rankings: leaderboard por ejercicio/reps | ✅ | ✅ |
 | Rankings: calculadora Wilks | — | ✅ |
 | Rankings: postular levantamiento con video | ✅ | ✅ |
 | Rankings: validación admin (aprobar/rechazar) | ✅ | ✅ |
 | Educación: catálogo artículos, favoritos, crear | ✅ | ✅ |
 | Eventos: listado, detalle, toggle interés, crear | ✅ | ✅ |
-| Notificaciones: sistema + eventos + artículos | ✅ | ✅ |
+| Notificaciones: sistema + eventos + artículos (últimos 14 días) | ✅ | ✅ |
 | Perfil: editar datos + preferencias | ✅ | ✅ |
 | Perfil: tema claro/oscuro en tiempo real | — | ✅ |
 | Perfil: unidades kg/lbs global | — | ✅ |
 | Perfil: marcas pinned en inicio (hasta 4) | — | ✅ |
+| **HIIT Timer: 5 modos (Tabata, EMOM, AMRAP, ForTime, MIX)** | ✅ | ✅ |
+| HIIT: motor timer background-safe, ring con dots, colores por fase | — | ✅ |
+| HIIT: catálogo de ejercicios con búsqueda y thumbnails en config | — | ✅ |
+| HIIT: ForTime con avance manual + restBetweenRounds | — | ✅ |
+| HIIT: guardar sesión automáticamente al completar | ✅ | ✅ |
+| HIIT: pre-cargar ejercicio desde catálogo con botón "Agregar a HIIT" | — | ✅ |
 
 ---
 
@@ -219,8 +232,9 @@ cd client
 # Emulador Android
 flutter run --dart-define=API_URL=http://10.0.2.2:8080
 
-# Dispositivo físico (reemplazar con IP local)
-flutter run --dart-define=API_URL=http://192.168.x.x:8080
+# Dispositivo físico vía adb reverse (recomendado)
+adb reverse tcp:8080 tcp:8080
+flutter run --dart-define=API_URL=http://localhost:8080
 ```
 
 ### Credenciales de desarrollo
@@ -260,9 +274,6 @@ docker compose -f docker-compose.dev.yml logs -f server
 docker compose -f docker-compose.dev.yml build --no-cache server
 docker compose -f docker-compose.dev.yml up -d server
 
-# Actualizar dependencias Dart dentro del contenedor
-docker compose -f docker-compose.dev.yml run --rm server dart pub get
-
 # Reiniciar BD desde cero
 docker compose -f docker-compose.dev.yml down -v
 docker compose -f docker-compose.dev.yml up -d
@@ -282,30 +293,41 @@ Todas las respuestas: `{ "data": ..., "error": null }` o `{ "data": null, "error
 | Auth | POST register/request · register/verify · login · logout · refresh · GET me |
 | Usuarios | GET me/stats · PATCH me · me/preferences · CRUD admin |
 | Ejercicios | GET listExercises · getExercise · byMuscleGroup · search · POST create · PATCH update · uploadImage |
+| Articulaciones | GET list · get/:id · POST create · PATCH update · deactivate |
 | Rutinas | GET listRoutines · myDefault · getRoutine · POST create · copyRoutine · PATCH setDefault · update · DELETE |
-| Workout | POST start · logSet · PATCH finish · DELETE cancel · GET active · history · session · week-status |
+| Workout | POST start · logSet · PATCH finish · DELETE cancel · GET active · history · session · week-status · calendar |
 | Historial | GET records · progress/:id · measurements · POST measurements · DELETE measurements/:id |
 | Rankings | GET exercises · leaderboard/:id · pending · POST validate/:id · DELETE reject/:id |
 | Artículos | GET list · favorites · get/:id · POST create · PATCH update · deactivate · POST :id/favorite |
 | Eventos | GET list · my-interests · get/:id · POST create · PATCH update · deactivate · POST :id/interest |
 | Notificaciones | GET list · unreadCount · PATCH read/:id · readAll · POST create |
 | Lift submissions | POST / · GET / · /:id · POST /:id/approve · /:id/reject · GET rankings · records |
+| **HIIT** | GET workouts · POST workouts · GET workouts/:id · PATCH workouts/:id · DELETE workouts/:id · POST sessions · GET sessions |
 
 ---
 
 ## Rutas Flutter
 
 ```
-Sin shell: /login  /register  /register/verify  /onboarding/terms  /onboarding/notifications
-           /workout/session  /workout/summary
+Sin shell (full-screen):
+  /login  /register  /register/verify
+  /onboarding/terms  /onboarding/notifications
+  /workout/session  /workout/summary
+  /hiit/session
 
-Con shell (5 tabs):
-/home  /exercises  /exercises/:id
-/routines  /routines/create  /routines/:id  /routines/:id/edit  /workout/history
-/history
-/rankings  /rankings/postulate  /rankings/submission/:id
-/education  /education/:id  /events  /events/:id  /notifications  /profile
-/admin/users  /admin/careers   (guard: admin)
+Con shell (NavigationBar 5 tabs):
+  /home
+  /exercises  /exercises/:id
+  /routines  /routines/create  /routines/:id  /routines/:id/edit
+  /hiit  /hiit/config
+  /workout/history
+  /history
+  /rankings  /rankings/postulate  /rankings/submission/:id
+  /education  /education/:id
+  /events  /events/:id
+  /notifications
+  /profile
+  /admin/users  /admin/careers   (guard: admin)
 ```
 
 ---
@@ -322,6 +344,8 @@ Con shell (5 tabs):
 | `fl_chart` | Gráficos de progreso |
 | `image_picker` | Subida de imágenes |
 | `audioplayers` | Sonidos countdown timer |
+| `wakelock_plus` | Pantalla encendida durante sesión HIIT |
+| `cached_network_image` | Caché de imágenes de ejercicios |
 | `pdf` + `printing` | Exportar historial PDF |
 | `shared_preferences` | Onboarding, tema, unidades, pinned exercises |
 
