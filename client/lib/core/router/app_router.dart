@@ -26,6 +26,10 @@ import '../../features/education/presentation/article_detail_screen.dart';
 import '../../features/events/presentation/events_screen.dart';
 import '../../features/events/presentation/event_detail_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart' as notif_screen;
+import '../../features/hiit/data/hiit_models.dart';
+import '../../features/hiit/presentation/hiit_list_screen.dart';
+import '../../features/hiit/presentation/hiit_config_screen.dart';
+import '../../features/hiit/presentation/hiit_session_screen.dart';
 import '../../shared/providers/auth_provider.dart';
 import '../../shared/providers/onboarding_provider.dart';
 import '../../shared/widgets/main_shell.dart';
@@ -131,6 +135,14 @@ GoRouter buildRouter(
             session: state.extra as Map<String, dynamic>,
           ),
         ),
+        GoRoute(
+          path: '/hiit/session',
+          redirect: (context, state) =>
+              state.extra is HiitConfig ? null : '/hiit',
+          builder: (context, state) => HiitSessionScreen(
+            config: state.extra as HiitConfig,
+          ),
+        ),
 
         // ── Con shell (barra de navegación inferior) ────────────────────────
         ShellRoute(
@@ -170,6 +182,34 @@ GoRouter buildRouter(
                           routineId: state.pathParameters['id']!),
                     ),
                   ],
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/hiit',
+              builder: (context, state) => const HiitListScreen(),
+              routes: [
+                GoRoute(
+                  path: 'config',
+                  builder: (context, state) {
+                    final extra = state.extra;
+                    if (extra is HiitMode) {
+                      return HiitConfigScreen(mode: extra);
+                    }
+                    final map = extra as Map<String, dynamic>;
+                    final mode = map['mode'] as HiitMode;
+                    final exData = map['exercise'] as Map<String, dynamic>?;
+                    HiitExerciseRef? initialEx;
+                    if (exData != null) {
+                      initialEx = HiitExerciseRef(
+                        name: exData['name'] as String? ?? '',
+                        exerciseId: exData['id'] as String?,
+                        imageUrl: exData['imageUrl'] as String?,
+                      );
+                    }
+                    return HiitConfigScreen(
+                        mode: mode, initialExercise: initialEx);
+                  },
                 ),
               ],
             ),

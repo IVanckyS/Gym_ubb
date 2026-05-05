@@ -15,9 +15,16 @@ class AppColors {
   static const Color bgTertiaryLight  = Color(0xFFEEEEF4);
 
   // Acento (igual en ambos modos)
-  static const Color accentPrimary   = Color(0xFF6C63FF);
+  static const Color accentPrimary   = Color(0xFF5B4FE8);
   static const Color accentSecondary = Color(0xFFFF6B6B);
-  static const Color accentGreen     = Color(0xFF4ECDC4);
+  static const Color accentGreen     = Color(0xFF00C9A7);
+
+  // Colores institucionales y complementarios
+  static const Color ubbBlue   = Color(0xFF014898);
+  static const Color ubbYellow = Color(0xFFF9B214);
+  static const Color ubbRed    = Color(0xFFE41B1A);
+  static const Color orange    = Color(0xFFFF8C42);
+  static const Color pink      = Color(0xFFFF6B9D);
 
   // Texto modo oscuro
   static const Color textPrimary   = Color(0xFFFFFFFF);

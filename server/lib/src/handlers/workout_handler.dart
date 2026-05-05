@@ -25,6 +25,9 @@ Router get workoutHandler {
   // GET /api/v1/workout/week-status?routineId=
   router.get('/week-status', _getWeekStatus);
 
+  // GET /api/v1/workout/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
+  router.get('/calendar', _getCalendar);
+
   // GET /api/v1/workout/history?limit=&offset=
   router.get('/history', _getHistory);
 
@@ -242,11 +245,23 @@ Future<Response> _finishSession(Request request, String sessionId) async {
   final status = rawStatus == 'partial' ? 'partial' : 'completed';
   final earlyFinishReason = body['earlyFinishReason'] as String?;
 
-  // Calcular volumen total (kg × reps de series completadas)
+  // Peso corporal del usuario para ejercicios de calistenia
+  final userWeightRes = await db.execute(
+    "SELECT weight_kg FROM users WHERE id = '$userId'::uuid",
+  );
+  final bodyWeightKg = userWeightRes.isNotEmpty
+      ? (double.tryParse(userWeightRes.first.toColumnMap()['weight_kg']?.toString() ?? '0') ?? 0.0)
+      : 0.0;
+
+  // Volumen: calistenia = (peso_corporal + lastre) × reps; dinámico = peso × reps
   final volumeResult = await db.execute(
-    "SELECT COALESCE(SUM(weight_kg * reps), 0) AS total_volume "
-    "FROM workout_sets WHERE session_id = '$sessionId'::uuid AND completed = true "
-    "AND weight_kg IS NOT NULL AND reps IS NOT NULL",
+    'SELECT COALESCE(SUM(CASE '
+    "WHEN e.exercise_type = 'calistenia' AND ws.reps IS NOT NULL "
+    'THEN (COALESCE(ws.weight_kg, 0) + $bodyWeightKg) * ws.reps '
+    'WHEN ws.weight_kg IS NOT NULL AND ws.reps IS NOT NULL '
+    'THEN ws.weight_kg * ws.reps ELSE 0 END), 0) AS total_volume '
+    'FROM workout_sets ws JOIN exercises e ON e.id = ws.exercise_id '
+    "WHERE ws.session_id = '$sessionId'::uuid AND ws.completed = true",
   );
   final totalVolume = volumeResult.first.toColumnMap()['total_volume'];
   final totalVolumeKg = double.tryParse(totalVolume?.toString() ?? '0') ?? 0.0;
@@ -351,6 +366,7 @@ Future<Response> _getSession(Request request, String id) async {
       'SELECT rde.exercise_id, e.name AS exercise_name, '
       'e.muscle_group::text AS muscle_group, e.image_url, e.exercise_type, '
       'rde.sets AS target_sets, rde.reps AS target_reps, '
+      'rde.duration_seconds AS target_duration_seconds, '
       'rde.rest_seconds, rde.rir, rde.order_index '
       'FROM routine_day_exercises rde '
       'JOIN exercises e ON e.id = rde.exercise_id '
@@ -367,6 +383,7 @@ Future<Response> _getSession(Request request, String id) async {
         'exerciseType': m['exercise_type'] ?? 'dinamico',
         'targetSets': m['target_sets'],
         'targetReps': m['target_reps'],
+        'targetDurationSeconds': m['target_duration_seconds'],
         'restSeconds': m['rest_seconds'],
         'rir': m['rir'],
         'orderIndex': m['order_index'],
@@ -481,6 +498,149 @@ Future<Response> _getWeekStatus(Request request) async {
   }
 
   return jsonOk({'days': days});
+}
+
+/// GET /calendar?from=YYYY-MM-DD&to=YYYY-MM-DD
+///
+/// Devuelve, para cada día en el rango (inclusive), uno de:
+///   'completed' | 'partial' — sesión de la rutina por defecto del usuario
+///   'free'                  — sesión libre (sin rutina o con otra rutina)
+///   'missed'                — día programado en rutina por defecto, pasado, sin sesión
+///   'scheduled'             — día programado en rutina por defecto, futuro
+///   'rest'                  — no había día programado y no hubo sesión
+///
+/// Respuesta: { "days": { "YYYY-MM-DD": "<status>" } }
+/// Solo se incluyen fechas con un status distinto de 'rest' (cliente asume rest por defecto).
+Future<Response> _getCalendar(Request request) async {
+  final claims = await requireAuth(request);
+  final userId = claims['sub'] as String;
+
+  final fromStr = request.url.queryParameters['from']?.trim() ?? '';
+  final toStr = request.url.queryParameters['to']?.trim() ?? '';
+
+  final from = DateTime.tryParse(fromStr);
+  final to = DateTime.tryParse(toStr);
+  if (from == null || to == null) {
+    return badRequest('Parámetros from y to requeridos (YYYY-MM-DD)');
+  }
+  if (to.isBefore(from)) return badRequest('to debe ser ≥ from');
+
+  // Limitar rango a 1 año para evitar abuso
+  if (to.difference(from).inDays > 366) {
+    return badRequest('Rango máximo: 366 días');
+  }
+
+  // ── Rutina por defecto + días programados (1=Lun..7=Dom) ────────────────────
+  const dayWeekday = {
+    'Lunes': 1, 'Martes': 2, 'Miércoles': 3, 'Jueves': 4,
+    'Viernes': 5, 'Sábado': 6, 'Domingo': 7,
+  };
+
+  final defaultRoutineRes = await db.execute(
+    "SELECT id FROM routines WHERE user_id = '$userId'::uuid "
+    "AND is_default = true AND is_active = true LIMIT 1",
+  );
+
+  String? defaultRoutineId;
+  Set<int> scheduledWeekdays = {};
+  if (defaultRoutineRes.isNotEmpty) {
+    defaultRoutineId = defaultRoutineRes.first.toColumnMap()['id'] as String?;
+    if (defaultRoutineId != null) {
+      final daysRes = await db.execute(
+        "SELECT day_name FROM routine_days WHERE routine_id = '$defaultRoutineId'::uuid",
+      );
+      for (final row in daysRes) {
+        final name = row.toColumnMap()['day_name'] as String?;
+        final wd = dayWeekday[name];
+        if (wd != null) scheduledWeekdays.add(wd);
+      }
+    }
+  }
+
+  // ── Sesiones del rango ──────────────────────────────────────────────────────
+  final fromIso =
+      '${from.year}-${from.month.toString().padLeft(2, '0')}-${from.day.toString().padLeft(2, '0')}';
+  final toIso =
+      '${to.year}-${to.month.toString().padLeft(2, '0')}-${to.day.toString().padLeft(2, '0')}';
+
+  final sessionsRes = await db.execute(
+    "SELECT TO_CHAR(started_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day, "
+    "status::text AS status, routine_id "
+    "FROM workout_sessions "
+    "WHERE user_id = '$userId'::uuid "
+    "AND ended_at IS NOT NULL "
+    "AND started_at >= '$fromIso'::date "
+    "AND started_at < ('$toIso'::date + interval '1 day') "
+    "ORDER BY started_at ASC",
+  );
+
+  // Indexar por día (preferencia: si hay sesión de la rutina por defecto, gana
+  // sobre una sesión libre del mismo día; si hay 'completed' gana sobre 'partial')
+  final byDay = <String, _DayStatus>{};
+  for (final row in sessionsRes) {
+    final m = row.toColumnMap();
+    final day = m['day'] as String?;
+    final status = m['status'] as String? ?? '';
+    final rid = m['routine_id'] as String?;
+    if (day == null) continue;
+
+    final isDefault = defaultRoutineId != null && rid == defaultRoutineId;
+    final cur = byDay[day];
+    final next = _DayStatus(isDefault: isDefault, status: status);
+    if (cur == null || next.priority > cur.priority) byDay[day] = next;
+  }
+
+  // ── Construir respuesta día a día ───────────────────────────────────────────
+  final today = DateTime.now().toUtc();
+  final todayIso =
+      '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+  final result = <String, String>{};
+  for (var d = from;
+      !d.isAfter(to);
+      d = d.add(const Duration(days: 1))) {
+    final iso =
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final wd = d.weekday;
+    final isPast = iso.compareTo(todayIso) < 0;
+    final isScheduled = scheduledWeekdays.contains(wd);
+
+    final hit = byDay[iso];
+    String? out;
+    if (hit != null) {
+      if (hit.isDefault) {
+        out = hit.status == 'completed' ? 'completed' : 'partial';
+      } else {
+        out = 'free';
+      }
+    } else if (isScheduled) {
+      out = isPast ? 'missed' : 'scheduled';
+    }
+    // Si no es scheduled y no hay sesión → 'rest' (omitimos del map)
+
+    if (out != null) result[iso] = out;
+  }
+
+  return jsonOk({
+    'days': result,
+    'defaultRoutineId': defaultRoutineId,
+    'scheduledWeekdays': scheduledWeekdays.toList()..sort(),
+  });
+}
+
+class _DayStatus {
+  final bool isDefault;
+  final String status;
+  const _DayStatus({required this.isDefault, required this.status});
+
+  /// Mayor prioridad gana al colapsar múltiples sesiones del mismo día.
+  /// completed-default > partial-default > free (any) > otros.
+  int get priority {
+    if (isDefault && status == 'completed') return 4;
+    if (isDefault && status == 'partial') return 3;
+    if (!isDefault) return 2;
+    return 1;
+  }
 }
 
 /// DELETE /cancel/<sessionId>

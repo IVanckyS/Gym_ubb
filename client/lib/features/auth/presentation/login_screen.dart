@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -61,7 +62,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.login(email: email, password: password);
     if (!ok || !mounted) return;
 
-    // Guardar o borrar credenciales según el checkbox
     if (_rememberMe) {
       await _storage.write(key: _keySavedEmail, value: email);
       await _storage.write(key: _keySavedPassword, value: password);
@@ -70,8 +70,6 @@ class _LoginScreenState extends State<LoginScreen> {
       await _storage.delete(key: _keySavedPassword);
     }
 
-    // Si no había credenciales guardadas antes y no activó el checkbox,
-    // preguntar si quiere guardar (solo una vez)
     if (!_rememberMe && !_credentialsLoaded && mounted) {
       final save = await _showSaveCredentialsDialog();
       if (save == true && mounted) {
@@ -88,9 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('¿Guardar datos de acceso?'),
-        content: const Text(
-          'La próxima vez podrás iniciar sesión más rápido.',
-        ),
+        content: const Text('La próxima vez podrás iniciar sesión más rápido.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -111,32 +107,124 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: context.colorBgPrimary,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 40),
-                  _buildHeader(),
-                  const SizedBox(height: 40),
-                  _buildCard(),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Solo para miembros de la comunidad UBB',
-                    style: Theme.of(context).textTheme.bodySmall,
-                    textAlign: TextAlign.center,
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 32),
+                        _buildCard(),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Solo para miembros de la comunidad UBB',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        _buildRegisterLink(),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 20),
-                  _buildRegisterLink(),
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF010c20), Color(0xFF012848)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(28, 44, 28, 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SvgPicture.asset(
+                'assets/icons/shield_logo.svg',
+                width: 56,
+                height: 56,
+              ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RichText(
+                    text: const TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Gym',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1,
+                            height: 1.1,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'UBB',
+                          style: TextStyle(
+                            color: Color(0xFFF9B214),
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1,
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    'UNIVERSIDAD DEL BÍO-BÍO',
+                    style: TextStyle(
+                      color: Color(0xFF4D9FFF),
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          const Text(
+            'Bienvenido',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Inicia sesión con tu correo institucional UBB',
+            style: TextStyle(
+              color: Color(0xFF6060A0),
+              fontSize: 14,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -169,35 +257,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Column(
-      children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.accentPrimary, Color(0xFF9C8FFF)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Icon(Icons.fitness_center, color: Colors.white, size: 36),
-        ),
-        const SizedBox(height: 16),
-        Text('GymUBB',
-            style: Theme.of(context)
-                .textTheme
-                .headlineLarge
-                ?.copyWith(letterSpacing: -0.5)),
-        const SizedBox(height: 6),
-        Text('Universidad del Bío-Bío',
-            style: Theme.of(context).textTheme.bodyMedium),
-      ],
     );
   }
 
@@ -312,7 +371,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: AppColors.accentSecondary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color: AppColors.accentSecondary.withValues(alpha: 0.3)),
+                          color:
+                              AppColors.accentSecondary.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [

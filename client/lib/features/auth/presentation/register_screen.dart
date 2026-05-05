@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/services/auth_service.dart';
@@ -67,23 +68,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       backgroundColor: context.colorBgPrimary,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Column(
-                children: [
-                  const SizedBox(height: 32),
-                  _buildHeader(),
-                  const SizedBox(height: 32),
-                  _buildCard(),
-                  const SizedBox(height: 20),
-                  _buildLoginLink(),
-                  const SizedBox(height: 32),
-                ],
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 32),
+                        _buildCard(),
+                        const SizedBox(height: 20),
+                        _buildLoginLink(),
+                        const SizedBox(height: 32),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -91,35 +97,90 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildHeader() {
-    return Column(
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.accentPrimary, Color(0xFF9C8FFF)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: const Icon(Icons.person_add_rounded, color: Colors.white, size: 30),
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF010c20), Color(0xFF012848)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        const SizedBox(height: 14),
-        Text(
-          'Crear cuenta',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
+      ),
+      padding: const EdgeInsets.fromLTRB(28, 44, 28, 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SvgPicture.asset(
+                'assets/icons/shield_logo.svg',
+                width: 56,
+                height: 56,
               ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Ingresa con tu correo institucional UBB',
-          style: Theme.of(context).textTheme.bodyMedium,
-          textAlign: TextAlign.center,
-        ),
-      ],
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RichText(
+                    text: const TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Gym',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1,
+                            height: 1.1,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'UBB',
+                          style: TextStyle(
+                            color: Color(0xFFF9B214),
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1,
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    'UNIVERSIDAD DEL BÍO-BÍO',
+                    style: TextStyle(
+                      color: Color(0xFF4D9FFF),
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          const Text(
+            'Crea tu cuenta',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Regístrate con tu correo institucional UBB',
+            style: TextStyle(
+              color: Color(0xFF6060A0),
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -145,7 +206,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: InputDecoration(
                 labelText: 'Nombre completo',
                 hintText: 'Ej: Juan Pérez',
-                prefixIcon: Icon(Icons.person_outline, color: context.colorTextMuted),
+                prefixIcon:
+                    Icon(Icons.person_outline, color: context.colorTextMuted),
               ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Ingresa tu nombre';
@@ -164,7 +226,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: InputDecoration(
                 labelText: 'Correo institucional',
                 hintText: 'usuario@alumnos.ubiobio.cl',
-                prefixIcon: Icon(Icons.email_outlined, color: context.colorTextMuted),
+                prefixIcon:
+                    Icon(Icons.email_outlined, color: context.colorTextMuted),
               ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Ingresa tu correo';
@@ -185,7 +248,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: InputDecoration(
                 labelText: 'Contraseña',
                 hintText: 'Mín. 8 caracteres, 1 mayúscula y 1 número',
-                prefixIcon: Icon(Icons.lock_outline, color: context.colorTextMuted),
+                prefixIcon:
+                    Icon(Icons.lock_outline, color: context.colorTextMuted),
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscurePassword
@@ -221,7 +285,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: InputDecoration(
                 labelText: 'Confirmar contraseña',
                 hintText: '••••••••',
-                prefixIcon: Icon(Icons.lock_outline, color: context.colorTextMuted),
+                prefixIcon:
+                    Icon(Icons.lock_outline, color: context.colorTextMuted),
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscureConfirm
@@ -244,7 +309,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             if (_error != null) ...[
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppColors.accentSecondary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),

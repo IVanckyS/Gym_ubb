@@ -6,9 +6,11 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_utils.dart' as du;
+import '../../../core/widgets/section_banner.dart';
 import '../../../core/utils/weight_utils.dart';
 import '../../../features/profile/providers/weight_unit_notifier.dart';
 import '../../../shared/services/history_service.dart';
+import '../../../shared/services/workout_service.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -26,7 +28,7 @@ class _HistoryScreenState extends State<HistoryScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -226,45 +228,67 @@ class _HistoryScreenState extends State<HistoryScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.colorBgPrimary,
-      appBar: AppBar(
-        title: const Text('Historial'),
-        elevation: 0,
-        actions: [
-          _exporting
-              ? const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.accentPrimary),
+      body: Column(
+        children: [
+          SectionBanner(
+            title: 'Historial',
+            subtitle: 'Progreso · Medidas · Récords',
+            label: 'Seguimiento',
+            accentColor: const Color(0xFF00C9A7),
+            iconName: 'history',
+            gradientColors: const [Color(0xFF011210), Color(0xFF012820)],
+            trailing: _exporting
+                ? const SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Padding(
+                      padding: EdgeInsets.all(8),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    ),
+                  )
+                : GestureDetector(
+                    onTap: _exportToPdf,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(40),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white.withAlpha(80)),
+                      ),
+                      child: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: 20),
+                    ),
                   ),
-                )
-              : IconButton(
-                  icon: const Icon(Icons.picture_as_pdf_rounded),
-                  tooltip: 'Exportar PDF',
-                  onPressed: _exportToPdf,
-                ),
-        ],
-        bottom: TabBar(
-          controller: _tabs,
-          labelColor: AppColors.accentPrimary,
-          unselectedLabelColor: context.colorTextSecondary,
-          indicatorColor: AppColors.accentPrimary,
-          indicatorSize: TabBarIndicatorSize.label,
-          tabs: const [
-            Tab(text: 'Progreso'),
-            Tab(text: 'Medidas'),
-            Tab(text: 'Récords'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabs,
-        children: const [
-          _ProgressTab(),
-          _MeasurementsTab(),
-          _RecordsTab(),
+          ),
+          Container(
+            color: context.colorBgSecondary,
+            child: TabBar(
+              controller: _tabs,
+              labelColor: AppColors.accentPrimary,
+              unselectedLabelColor: context.colorTextSecondary,
+              indicatorColor: AppColors.accentPrimary,
+              indicatorSize: TabBarIndicatorSize.label,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: const [
+                Tab(text: 'Progreso'),
+                Tab(text: 'Medidas'),
+                Tab(text: 'Récords'),
+                Tab(text: 'Calendario'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: const [
+                _ProgressTab(),
+                _MeasurementsTab(),
+                _RecordsTab(),
+                _CalendarTab(),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1463,6 +1487,478 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB 4 — CALENDARIO DE ACTIVIDAD
+// ═══════════════════════════════════════════════════════════════════════════════
 
+class _CalendarTab extends StatefulWidget {
+  const _CalendarTab();
 
+  @override
+  State<_CalendarTab> createState() => _CalendarTabState();
+}
+
+class _CalendarTabState extends State<_CalendarTab> {
+  final _workoutService = WorkoutService();
+  late DateTime _currentMonth;
+  Map<String, String> _statusByDay = {};
+  bool _loading = true;
+  String? _error;
+
+  static const _monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _currentMonth = DateTime(now.year, now.month, 1);
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final from = _currentMonth;
+      final to = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
+      final days = await _workoutService.getCalendar(from: from, to: to);
+      if (!mounted) return;
+      setState(() { _statusByDay = days; _loading = false; });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  void _shiftMonth(int delta) {
+    setState(() {
+      _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + delta, 1);
+    });
+    _load();
+  }
+
+  Future<void> _pickMonth() async {
+    final picked = await showDialog<DateTime>(
+      context: context,
+      builder: (_) => _MonthYearPicker(initial: _currentMonth),
+    );
+    if (picked != null) {
+      setState(() => _currentMonth = DateTime(picked.year, picked.month, 1));
+      _load();
+    }
+  }
+
+  String _isoDay(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildHeader(context),
+          const SizedBox(height: 14),
+          _buildLegend(context),
+          const SizedBox(height: 14),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _ErrorView(error: _error!, onRetry: _load)
+                    : _buildGrid(context),
+          ),
+          const SizedBox(height: 8),
+          _buildSummary(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final label =
+        '${_monthNames[_currentMonth.month - 1]} ${_currentMonth.year}';
+    return Row(
+      children: [
+        _NavButton(icon: Icons.chevron_left, onTap: () => _shiftMonth(-1)),
+        Expanded(
+          child: GestureDetector(
+            onTap: _pickMonth,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: context.colorTextPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.arrow_drop_down, color: context.colorTextSecondary),
+                ],
+              ),
+            ),
+          ),
+        ),
+        _NavButton(icon: Icons.chevron_right, onTap: () => _shiftMonth(1)),
+      ],
+    );
+  }
+
+  Widget _buildLegend(BuildContext context) {
+    Widget chip(Color color, String label) => Padding(
+          padding: const EdgeInsets.only(right: 12, bottom: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 5),
+              Text(label,
+                  style: TextStyle(color: context.colorTextSecondary, fontSize: 11)),
+            ],
+          ),
+        );
+
+    return Wrap(
+      children: [
+        chip(AppColors.accentGreen, 'Cumplido'),
+        chip(const Color(0xFFFFB347), 'Parcial'),
+        chip(AppColors.accentSecondary, 'Perdido'),
+        chip(AppColors.accentPrimary, 'Libre'),
+      ],
+    );
+  }
+
+  Widget _buildGrid(BuildContext context) {
+    final firstDay = _currentMonth;
+    final daysInMonth =
+        DateTime(_currentMonth.year, _currentMonth.month + 1, 0).day;
+    // En Dart weekday: 1=Lunes..7=Domingo. Mapeamos directo a columnas (0-6).
+    final leadingBlanks = firstDay.weekday - 1;
+
+    final today = DateTime.now();
+    final todayIso = _isoDay(DateTime(today.year, today.month, today.day));
+
+    const headerRow = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+    return Column(
+      children: [
+        Row(
+          children: headerRow
+              .map((d) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        d,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: context.colorTextMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 4),
+        Expanded(
+          child: GridView.count(
+            crossAxisCount: 7,
+            mainAxisSpacing: 6,
+            crossAxisSpacing: 6,
+            childAspectRatio: 1,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              ...List.generate(leadingBlanks, (_) => const SizedBox.shrink()),
+              ...List.generate(daysInMonth, (i) {
+                final day = i + 1;
+                final date =
+                    DateTime(_currentMonth.year, _currentMonth.month, day);
+                final iso = _isoDay(date);
+                final status = _statusByDay[iso];
+                final isToday = iso == todayIso;
+                return _DayCell(
+                  day: day,
+                  status: status,
+                  isToday: isToday,
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummary(BuildContext context) {
+    var completed = 0, partial = 0, missed = 0, free = 0;
+    for (final v in _statusByDay.values) {
+      switch (v) {
+        case 'completed': completed++; break;
+        case 'partial':   partial++;   break;
+        case 'missed':    missed++;    break;
+        case 'free':      free++;      break;
+      }
+    }
+    Widget cell(String label, int count, Color color) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              children: [
+                Text('$count',
+                    style: TextStyle(
+                        color: color, fontSize: 16, fontWeight: FontWeight.w800)),
+                Text(label,
+                    style: TextStyle(
+                        color: context.colorTextMuted, fontSize: 10)),
+              ],
+            ),
+          ),
+        );
+
+    return Row(
+      children: [
+        cell('Cumplidos', completed, AppColors.accentGreen),
+        const SizedBox(width: 6),
+        cell('Parciales', partial, const Color(0xFFFFB347)),
+        const SizedBox(width: 6),
+        cell('Perdidos', missed, AppColors.accentSecondary),
+        const SizedBox(width: 6),
+        cell('Libres', free, AppColors.accentPrimary),
+      ],
+    );
+  }
+}
+
+class _DayCell extends StatelessWidget {
+  const _DayCell({required this.day, required this.status, required this.isToday});
+  final int day;
+  final String? status;
+  final bool isToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg, border) = _stylesFor(status, context);
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isToday ? AppColors.accentPrimary : border,
+          width: isToday ? 1.6 : 1,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          '$day',
+          style: TextStyle(
+            color: fg,
+            fontSize: 13,
+            fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  (Color, Color, Color) _stylesFor(String? s, BuildContext ctx) {
+    switch (s) {
+      case 'completed':
+        return (
+          AppColors.accentGreen.withValues(alpha: 0.85),
+          Colors.white,
+          AppColors.accentGreen,
+        );
+      case 'partial':
+        return (
+          const Color(0xFFFFB347).withValues(alpha: 0.85),
+          Colors.white,
+          const Color(0xFFFFB347),
+        );
+      case 'missed':
+        return (
+          AppColors.accentSecondary.withValues(alpha: 0.85),
+          Colors.white,
+          AppColors.accentSecondary,
+        );
+      case 'free':
+        return (
+          AppColors.accentPrimary.withValues(alpha: 0.7),
+          Colors.white,
+          AppColors.accentPrimary,
+        );
+      case 'scheduled':
+        return (
+          Colors.transparent,
+          ctx.colorTextSecondary,
+          AppColors.accentPrimary.withValues(alpha: 0.4),
+        );
+      default:
+        return (
+          ctx.colorBgTertiary,
+          ctx.colorTextMuted,
+          AppColors.border,
+        );
+    }
+  }
+}
+
+class _NavButton extends StatelessWidget {
+  const _NavButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: context.colorBgSecondary,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Icon(icon, size: 18, color: context.colorTextPrimary),
+      ),
+    );
+  }
+}
+
+class _MonthYearPicker extends StatefulWidget {
+  const _MonthYearPicker({required this.initial});
+  final DateTime initial;
+
+  @override
+  State<_MonthYearPicker> createState() => _MonthYearPickerState();
+}
+
+class _MonthYearPickerState extends State<_MonthYearPicker> {
+  late int _year;
+  late int _month;
+
+  static const _months = [
+    'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _year = widget.initial.year;
+    _month = widget.initial.month;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.bgSecondary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Ir a mes',
+          style: TextStyle(color: context.colorTextPrimary, fontSize: 16)),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Year picker
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  color: context.colorTextSecondary,
+                  onPressed: () => setState(() => _year--),
+                ),
+                Text('$_year',
+                    style: TextStyle(
+                        color: context.colorTextPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800)),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  color: context.colorTextSecondary,
+                  onPressed: () => setState(() => _year++),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Month grid 4×3
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 4,
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 6,
+              childAspectRatio: 1.6,
+              children: List.generate(12, (i) {
+                final m = i + 1;
+                final selected = m == _month;
+                return GestureDetector(
+                  onTap: () => setState(() => _month = m),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.accentPrimary
+                          : context.colorBgTertiary,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: selected
+                            ? AppColors.accentPrimary
+                            : AppColors.border,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _months[i],
+                        style: TextStyle(
+                          color:
+                              selected ? Colors.white : context.colorTextPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancelar',
+              style: TextStyle(color: context.colorTextSecondary)),
+        ),
+        FilledButton(
+          onPressed: () =>
+              Navigator.pop(context, DateTime(_year, _month, 1)),
+          style: FilledButton.styleFrom(backgroundColor: AppColors.accentPrimary),
+          child: const Text('Ir'),
+        ),
+      ],
+    );
+  }
+}
 

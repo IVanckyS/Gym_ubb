@@ -14,16 +14,17 @@ Router get liftSubmissionsHandler {
   router.post('/', _create);
   // GET    /api/v1/lift-submissions?status=&user_id=
   router.get('/', _list);
+  // Rutas estáticas ANTES que /<id> para evitar conflicto de ruteo
+  // GET    /api/v1/lift-submissions/rankings
+  router.get('/rankings', _rankings);
+  // GET    /api/v1/lift-submissions/records
+  router.get('/records', _records);
   // GET    /api/v1/lift-submissions/<id>
   router.get('/<id>', _getOne);
   // POST   /api/v1/lift-submissions/<id>/approve
   router.post('/<id>/approve', _approve);
   // POST   /api/v1/lift-submissions/<id>/reject
   router.post('/<id>/reject', _reject);
-  // GET    /api/v1/lift-submissions/rankings
-  router.get('/rankings', _rankings);
-  // GET    /api/v1/lift-submissions/records
-  router.get('/records', _records);
 
   return router;
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/section_banner.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/providers/default_routine_provider.dart';
 import '../data/routines_service.dart';
@@ -115,20 +116,6 @@ class _RoutinesScreenState extends State<RoutinesScreen>
 
     return Scaffold(
       backgroundColor: context.colorBgPrimary,
-      appBar: AppBar(
-        title: const Text('Rutinas'),
-        automaticallyImplyLeading: false,
-        bottom: TabBar(
-          controller: _tabs,
-          indicatorColor: AppColors.accentPrimary,
-          labelColor: AppColors.accentPrimary,
-          unselectedLabelColor: context.colorTextSecondary,
-          tabs: const [
-            Tab(text: 'Mis Rutinas'),
-            Tab(text: 'De Profesores'),
-          ],
-        ),
-      ),
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               onPressed: () async {
@@ -140,43 +127,70 @@ class _RoutinesScreenState extends State<RoutinesScreen>
               label: const Text('Nueva', style: TextStyle(color: Colors.white)),
             )
           : null,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? _ErrorView(error: _error!, onRetry: _load)
-              : TabBarView(
-                  controller: _tabs,
-                  children: [
-                    _RoutineList(
-                      routines: _myRoutines,
-                      emptyMessage: 'No tienes rutinas aún',
-                      emptyAction: canCreate
-                          ? () async {
-                              final created = await context.push<bool>('/routines/create');
-                              if (created == true) _load();
-                            }
-                          : null,
-                      currentUserId: context.read<AuthProvider>().user?['id'] as String?,
-                      onDelete: _delete,
-                      onEdit: (id) async {
-                        final updated = await context.push<bool>('/routines/$id/edit');
-                        if (updated == true) _load();
-                      },
-                      onSetDefault: _setDefault,
-                      onCopy: null,
-                    ),
-                    _RoutineList(
-                      routines: _publicRoutines,
-                      emptyMessage: 'No hay rutinas de profesores aún',
-                      emptyAction: null,
-                      currentUserId: null,
-                      onDelete: null,
-                      onEdit: null,
-                      onSetDefault: null,
-                      onCopy: _copyRoutine,
-                    ),
-                  ],
-                ),
+      body: Column(
+        children: [
+          const SectionBanner(
+            title: 'Mis Rutinas',
+            subtitle: 'Fuerza · Hipertrofia · Pérdida de peso',
+            label: 'Planificación',
+            accentColor: Color(0xFF4D9FFF),
+            iconName: 'routines',
+            gradientColors: [Color(0xFF010e22), Color(0xFF012040)],
+          ),
+          Container(
+            color: context.colorBgSecondary,
+            child: TabBar(
+              controller: _tabs,
+              indicatorColor: AppColors.accentPrimary,
+              labelColor: AppColors.accentPrimary,
+              unselectedLabelColor: context.colorTextSecondary,
+              tabs: const [
+                Tab(text: 'Mis Rutinas'),
+                Tab(text: 'De Profesores'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _ErrorView(error: _error!, onRetry: _load)
+                    : TabBarView(
+                        controller: _tabs,
+                        children: [
+                          _RoutineList(
+                            routines: _myRoutines,
+                            emptyMessage: 'No tienes rutinas aún',
+                            emptyAction: canCreate
+                                ? () async {
+                                    final created = await context.push<bool>('/routines/create');
+                                    if (created == true) _load();
+                                  }
+                                : null,
+                            currentUserId: context.read<AuthProvider>().user?['id'] as String?,
+                            onDelete: _delete,
+                            onEdit: (id) async {
+                              final updated = await context.push<bool>('/routines/$id/edit');
+                              if (updated == true) _load();
+                            },
+                            onSetDefault: _setDefault,
+                            onCopy: null,
+                          ),
+                          _RoutineList(
+                            routines: _publicRoutines,
+                            emptyMessage: 'No hay rutinas de profesores aún',
+                            emptyAction: null,
+                            currentUserId: null,
+                            onDelete: null,
+                            onEdit: null,
+                            onSetDefault: null,
+                            onCopy: _copyRoutine,
+                          ),
+                        ],
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }

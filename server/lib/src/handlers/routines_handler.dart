@@ -85,10 +85,12 @@ Map<String, dynamic> _dayExerciseToMap(Map<String, dynamic> row) => {
       'exerciseId': row['exercise_id'],
       'exerciseName': row['exercise_name'],
       'muscleGroup': row['muscle_group'],
+      'exerciseType': row['exercise_type'] ?? 'dinamico',
       'sets': row['sets'],
       'reps': row['reps'],
       'restSeconds': row['rest_seconds'],
       'rir': row['rir'],
+      'durationSeconds': row['duration_seconds'],
       'orderIndex': row['order_index'],
     };
 
@@ -186,7 +188,8 @@ Future<Response> _getRoutine(Request request, String id) async {
     final exResult = await db.execute(
       'SELECT rde.id, rde.routine_day_id, rde.exercise_id, '
       'e.name AS exercise_name, e.muscle_group::text AS muscle_group, '
-      'rde.sets, rde.reps, rde.rest_seconds, rde.rir, rde.order_index '
+      'e.exercise_type, '
+      'rde.sets, rde.reps, rde.rest_seconds, rde.rir, rde.duration_seconds, rde.order_index '
       'FROM routine_day_exercises rde '
       'JOIN exercises e ON e.id = rde.exercise_id '
       'WHERE rde.routine_day_id IN ($dayIds) '
@@ -284,20 +287,22 @@ Future<Response> _createRoutine(Request request) async {
       final reps = (ex['reps'] as String? ?? '8-12').trim();
       final restSeconds = ex['restSeconds'] as int? ?? 90;
       final rir = ex['rir'] as int?;
+      final durationSeconds = ex['durationSeconds'] as int?;
       final exOrderIndex = ex['orderIndex'] as int? ?? 0;
 
       final rdeId = _uuid.v4();
       await db.execute(
         Sql.named(
-          'INSERT INTO routine_day_exercises (id, routine_day_id, exercise_id, sets, reps, rest_seconds, rir, order_index) '
+          'INSERT INTO routine_day_exercises (id, routine_day_id, exercise_id, sets, reps, rest_seconds, rir, duration_seconds, order_index) '
           "VALUES ('$rdeId'::uuid, '$dayId'::uuid, '$exerciseId'::uuid, "
-          '@sets, @reps, @restSeconds, @rir, @orderIndex)',
+          '@sets, @reps, @restSeconds, @rir, @durationSeconds, @orderIndex)',
         ),
         parameters: {
           'sets': sets,
           'reps': reps,
           'restSeconds': restSeconds,
           'rir': rir,
+          'durationSeconds': durationSeconds,
           'orderIndex': exOrderIndex,
         },
       );
@@ -371,6 +376,11 @@ Future<Response> _updateRoutine(Request request, String id) async {
 
   // Reemplazar días y ejercicios si se envían
   if (body.containsKey('days')) {
+    // Desvincular sesiones antes de borrar los días para evitar FK violation
+    await db.execute(
+      'UPDATE workout_sessions SET routine_day_id = NULL '
+      "WHERE routine_day_id IN (SELECT id FROM routine_days WHERE routine_id = '$id'::uuid)",
+    );
     await db.execute(
       "DELETE FROM routine_days WHERE routine_id = '$id'::uuid",
     );
@@ -400,14 +410,15 @@ Future<Response> _updateRoutine(Request request, String id) async {
         final reps = ex['reps'] as String? ?? '8-12';
         final restSeconds = ex['restSeconds'] as int? ?? 90;
         final rir = ex['rir'] as int?;
+        final durationSeconds = ex['durationSeconds'] as int?;
         final rdeId = _uuid.v4();
         await db.execute(
           Sql.named(
-            'INSERT INTO routine_day_exercises (id, routine_day_id, exercise_id, sets, reps, rest_seconds, rir, order_index) '
+            'INSERT INTO routine_day_exercises (id, routine_day_id, exercise_id, sets, reps, rest_seconds, rir, duration_seconds, order_index) '
             "VALUES ('$rdeId'::uuid, '$dayId'::uuid, '$exerciseId'::uuid, "
-            '@sets, @reps, @restSeconds, @rir, @orderIndex)',
+            '@sets, @reps, @restSeconds, @rir, @durationSeconds, @orderIndex)',
           ),
-          parameters: {'sets': sets, 'reps': reps, 'restSeconds': restSeconds, 'rir': rir, 'orderIndex': j},
+          parameters: {'sets': sets, 'reps': reps, 'restSeconds': restSeconds, 'rir': rir, 'durationSeconds': durationSeconds, 'orderIndex': j},
         );
       }
     }
@@ -446,7 +457,8 @@ Future<Response> _myDefault(Request request) async {
     final exResult = await db.execute(
       'SELECT rde.id, rde.routine_day_id, rde.exercise_id, '
       'e.name AS exercise_name, e.muscle_group::text AS muscle_group, '
-      'rde.sets, rde.reps, rde.rest_seconds, rde.rir, rde.order_index '
+      'e.exercise_type, '
+      'rde.sets, rde.reps, rde.rest_seconds, rde.rir, rde.duration_seconds, rde.order_index '
       'FROM routine_day_exercises rde '
       'JOIN exercises e ON e.id = rde.exercise_id '
       'WHERE rde.routine_day_id IN ($dayIds) '
@@ -544,7 +556,7 @@ Future<Response> _copyRoutine(Request request, String id) async {
     );
 
     final exResult = await db.execute(
-      'SELECT exercise_id, sets, reps, rest_seconds, rir, order_index '
+      'SELECT exercise_id, sets, reps, rest_seconds, rir, duration_seconds, order_index '
       "FROM routine_day_exercises WHERE routine_day_id = '${day['id']}'::uuid "
       'ORDER BY order_index ASC',
     );
@@ -553,15 +565,16 @@ Future<Response> _copyRoutine(Request request, String id) async {
       final newExId = _uuid.v4();
       await db.execute(
         Sql.named(
-          'INSERT INTO routine_day_exercises (id, routine_day_id, exercise_id, sets, reps, rest_seconds, rir, order_index) '
+          'INSERT INTO routine_day_exercises (id, routine_day_id, exercise_id, sets, reps, rest_seconds, rir, duration_seconds, order_index) '
           "VALUES ('$newExId'::uuid, '$newDayId'::uuid, '${ex['exercise_id']}'::uuid, "
-          '@sets, @reps, @rest, @rir, @order)',
+          '@sets, @reps, @rest, @rir, @durationSeconds, @order)',
         ),
         parameters: {
           'sets': ex['sets'],
           'reps': ex['reps'],
           'rest': ex['rest_seconds'],
           'rir': ex['rir'],
+          'durationSeconds': ex['duration_seconds'],
           'order': ex['order_index'],
         },
       );

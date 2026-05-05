@@ -1,603 +1,323 @@
 import 'package:flutter/material.dart';
 
+// ── Enums ─────────────────────────────────────────────────────────────────────
+
+enum BodyView { front, back }
+
+enum Gender { male, female }
+
+enum BodyMapMode { muscle, joint }
+
+enum MuscleGroup {
+  pecho,
+  espalda,
+  piernas,
+  hombros,
+  brazos,
+  core,
+  gluteos;
+
+  String get displayName {
+    switch (this) {
+      case MuscleGroup.pecho:   return 'Pecho';
+      case MuscleGroup.espalda: return 'Espalda';
+      case MuscleGroup.piernas: return 'Piernas';
+      case MuscleGroup.hombros: return 'Hombros';
+      case MuscleGroup.brazos:  return 'Brazos';
+      case MuscleGroup.core:    return 'Core';
+      case MuscleGroup.gluteos: return 'Glúteos';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case MuscleGroup.pecho:   return const Color(0xFF3b82f6);
+      case MuscleGroup.espalda: return const Color(0xFF8b5cf6);
+      case MuscleGroup.piernas: return const Color(0xFF22c55e);
+      case MuscleGroup.hombros: return const Color(0xFFf97316);
+      case MuscleGroup.brazos:  return const Color(0xFFec4899);
+      case MuscleGroup.core:    return const Color(0xFFeab308);
+      case MuscleGroup.gluteos: return const Color(0xFFef4444);
+    }
+  }
+}
+
+enum MuscleSubgroup {
+  // pecho
+  pectoralSuperior, pectoralMedio, pectoralInferior,
+  // espalda
+  dorsalAncho, trapecioSuperior, trapecioMedio, romboides, redondoMayor, lumbarVisual,
+  // piernas
+  cuadriceps, isquiotibiales, aductores, gastrocnemio, soleo, tibialAnterior,
+  // hombros
+  deltoideAnterior, deltoideLateral, deltoidePosterior,
+  // brazos
+  bicepsBraquial, braquial, tricepsLarga, tricepsLateral, antebrazoFlexor, antebrazoExtensor,
+  // core
+  rectoAbdominalSuperior, rectoAbdominalInferior, oblicuos, cuello,
+  // gluteos
+  gluteoMayor, gluteoMedio;
+
+  String get displayName {
+    switch (this) {
+      case MuscleSubgroup.pectoralSuperior:      return 'Pectoral superior';
+      case MuscleSubgroup.pectoralMedio:         return 'Pectoral medio';
+      case MuscleSubgroup.pectoralInferior:      return 'Pectoral inferior';
+      case MuscleSubgroup.dorsalAncho:           return 'Dorsal ancho';
+      case MuscleSubgroup.trapecioSuperior:      return 'Trapecio superior';
+      case MuscleSubgroup.trapecioMedio:         return 'Trapecio medio';
+      case MuscleSubgroup.romboides:             return 'Romboides';
+      case MuscleSubgroup.redondoMayor:          return 'Redondo mayor';
+      case MuscleSubgroup.lumbarVisual:          return 'Lumbar';
+      case MuscleSubgroup.cuadriceps:            return 'Cuádriceps';
+      case MuscleSubgroup.isquiotibiales:        return 'Isquiotibiales';
+      case MuscleSubgroup.aductores:             return 'Aductores';
+      case MuscleSubgroup.gastrocnemio:          return 'Gastrocnemio';
+      case MuscleSubgroup.soleo:                 return 'Sóleo';
+      case MuscleSubgroup.tibialAnterior:        return 'Tibial anterior';
+      case MuscleSubgroup.deltoideAnterior:      return 'Deltoides anterior';
+      case MuscleSubgroup.deltoideLateral:       return 'Deltoides lateral';
+      case MuscleSubgroup.deltoidePosterior:     return 'Deltoides posterior';
+      case MuscleSubgroup.bicepsBraquial:        return 'Bíceps braquial';
+      case MuscleSubgroup.braquial:              return 'Braquial';
+      case MuscleSubgroup.tricepsLarga:          return 'Tríceps (cab. larga)';
+      case MuscleSubgroup.tricepsLateral:        return 'Tríceps (cab. lateral)';
+      case MuscleSubgroup.antebrazoFlexor:       return 'Antebrazo flexor';
+      case MuscleSubgroup.antebrazoExtensor:     return 'Antebrazo extensor';
+      case MuscleSubgroup.rectoAbdominalSuperior: return 'Recto abd. superior';
+      case MuscleSubgroup.rectoAbdominalInferior: return 'Recto abd. inferior';
+      case MuscleSubgroup.oblicuos:              return 'Oblicuos';
+      case MuscleSubgroup.cuello:                return 'Cuello';
+      case MuscleSubgroup.gluteoMayor:           return 'Glúteo mayor';
+      case MuscleSubgroup.gluteoMedio:           return 'Glúteo medio';
+    }
+  }
+}
+
+enum JointFamily {
+  shoulder, elbow, wrist, hip, knee, ankle, cervical, lumbar;
+
+  String get displayName {
+    switch (this) {
+      case JointFamily.shoulder:  return 'Hombro';
+      case JointFamily.elbow:     return 'Codo';
+      case JointFamily.wrist:     return 'Muñeca';
+      case JointFamily.hip:       return 'Cadera';
+      case JointFamily.knee:      return 'Rodilla';
+      case JointFamily.ankle:     return 'Tobillo';
+      case JointFamily.cervical:  return 'Cervical';
+      case JointFamily.lumbar:    return 'Lumbar';
+    }
+  }
+}
+
+// ── Geometría ─────────────────────────────────────────────────────────────────
+
+/// Punto normalizado (0–1) usado por PolygonShape.
+class Point {
+  final double x, y;
+  const Point(this.x, this.y);
+}
+
+abstract class HitboxShape {
+  const HitboxShape();
+}
+
+/// Elipse normalizada (0–1) con rotación opcional en grados.
+///
+/// Hit-test (ver pin tool): trasladar el punto al sistema local de la elipse,
+/// rotar por -rot, y aplicar la fórmula estándar (lx²/rx²) + (ly²/ry²) ≤ 1.
+class EllipseShape extends HitboxShape {
+  final double cx, cy, rx, ry, rot;
+  const EllipseShape({
+    required this.cx,
+    required this.cy,
+    required this.rx,
+    required this.ry,
+    this.rot = 0,
+  });
+}
+
+/// Polígono normalizado (0–1) — los vértices se proyectan al viewBox del SVG.
+class PolygonShape extends HitboxShape {
+  final List<Point> points;
+  const PolygonShape({required this.points});
+}
+
 // ── Data classes ──────────────────────────────────────────────────────────────
 
-class MuscleZone {
-  final String id;
-  final String name;
-  final String muscleGroup;
-  final String points; // SVG polygon points "x1,y1 x2,y2 ..."
+class MuscleRegion {
+  final String hitboxId;
+  final MuscleGroup group;
+  final MuscleSubgroup subgroup;
+  final BodyView view;
+  final HitboxShape shape;
 
-  const MuscleZone({
-    required this.id,
-    required this.name,
-    required this.muscleGroup,
-    required this.points,
+  const MuscleRegion({
+    required this.hitboxId,
+    required this.group,
+    required this.subgroup,
+    required this.view,
+    required this.shape,
   });
 }
 
 class JointPoint {
-  final String id;
-  final String name;
-  final double x;
-  final double y;
-  final String family;
+  final String jointId;
+  final JointFamily family;
+  final BodyView view;
+  final double cx, cy;
 
   const JointPoint({
-    required this.id,
-    required this.name,
-    required this.x,
-    required this.y,
+    required this.jointId,
     required this.family,
+    required this.view,
+    required this.cx,
+    required this.cy,
   });
 }
 
-class JointExercise {
-  final String id;
-  final String name;
-  final String type; // 'movilidad' | 'fortalecimiento'
-  final String jointFamily;
-  final List<String> instructions;
-  final String? benefits;
-  final String? whenToUse;
-  final String? videoUrl;
+// ── Datos generados por GymUBB Body Map Pinner — 2026-04-26T19:30:02.671Z ─────
+// Coordenadas normalizadas (0–1). Se proyectan al viewBox del SVG en uso.
 
-  const JointExercise({
-    required this.id,
-    required this.name,
-    required this.type,
-    required this.jointFamily,
-    required this.instructions,
-    this.benefits,
-    this.whenToUse,
-    this.videoUrl,
-  });
-}
+const List<MuscleRegion> kMuscleRegions = [
+  MuscleRegion(hitboxId: 'cuello_front', group: MuscleGroup.core, subgroup: MuscleSubgroup.cuello, view: BodyView.front, shape: EllipseShape(cx: 0.498, cy: 0.179, rx: 0.03, ry: 0.018, rot: 0)),
+  MuscleRegion(hitboxId: 'pecho_sup_izq', group: MuscleGroup.pecho, subgroup: MuscleSubgroup.pectoralSuperior, view: BodyView.front, shape: EllipseShape(cx: 0.418, cy: 0.22, rx: 0.055, ry: 0.022, rot: 0)),
+  MuscleRegion(hitboxId: 'pecho_sup_der', group: MuscleGroup.pecho, subgroup: MuscleSubgroup.pectoralSuperior, view: BodyView.front, shape: EllipseShape(cx: 0.582, cy: 0.217, rx: 0.055, ry: 0.022, rot: 0)),
+  MuscleRegion(hitboxId: 'pecho_med_izq', group: MuscleGroup.pecho, subgroup: MuscleSubgroup.pectoralMedio, view: BodyView.front, shape: EllipseShape(cx: 0.414, cy: 0.247, rx: 0.06, ry: 0.02, rot: 0)),
+  MuscleRegion(hitboxId: 'pecho_med_der', group: MuscleGroup.pecho, subgroup: MuscleSubgroup.pectoralMedio, view: BodyView.front, shape: EllipseShape(cx: 0.584, cy: 0.249, rx: 0.06, ry: 0.02, rot: 0)),
+  MuscleRegion(hitboxId: 'pecho_inf_izq', group: MuscleGroup.pecho, subgroup: MuscleSubgroup.pectoralInferior, view: BodyView.front, shape: EllipseShape(cx: 0.418, cy: 0.277, rx: 0.058, ry: 0.018, rot: 0)),
+  MuscleRegion(hitboxId: 'pecho_inf_der', group: MuscleGroup.pecho, subgroup: MuscleSubgroup.pectoralInferior, view: BodyView.front, shape: EllipseShape(cx: 0.578, cy: 0.276, rx: 0.058, ry: 0.018, rot: 0)),
+  MuscleRegion(hitboxId: 'delt_ant_izq', group: MuscleGroup.hombros, subgroup: MuscleSubgroup.deltoideAnterior, view: BodyView.front, shape: EllipseShape(cx: 0.354, cy: 0.229, rx: 0.04, ry: 0.038, rot: 0)),
+  MuscleRegion(hitboxId: 'delt_ant_der', group: MuscleGroup.hombros, subgroup: MuscleSubgroup.deltoideAnterior, view: BodyView.front, shape: EllipseShape(cx: 0.648, cy: 0.23, rx: 0.04, ry: 0.038, rot: 0)),
+  MuscleRegion(hitboxId: 'delt_lat_izq_f', group: MuscleGroup.hombros, subgroup: MuscleSubgroup.deltoideLateral, view: BodyView.front, shape: EllipseShape(cx: 0.316, cy: 0.243, rx: 0.03, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'delt_lat_der_f', group: MuscleGroup.hombros, subgroup: MuscleSubgroup.deltoideLateral, view: BodyView.front, shape: EllipseShape(cx: 0.682, cy: 0.241, rx: 0.03, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'biceps_izq', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.bicepsBraquial, view: BodyView.front, shape: EllipseShape(cx: 0.275, cy: 0.316, rx: 0.038, ry: 0.06, rot: 28)),
+  MuscleRegion(hitboxId: 'biceps_der', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.bicepsBraquial, view: BodyView.front, shape: EllipseShape(cx: 0.723, cy: 0.306, rx: 0.038, ry: 0.06, rot: 150)),
+  MuscleRegion(hitboxId: 'braquial_izq', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.braquial, view: BodyView.front, shape: EllipseShape(cx: 0.247, cy: 0.344, rx: 0.02, ry: 0.04, rot: 25)),
+  MuscleRegion(hitboxId: 'braquial_der', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.braquial, view: BodyView.front, shape: EllipseShape(cx: 0.754, cy: 0.337, rx: 0.02, ry: 0.04, rot: 150)),
+  MuscleRegion(hitboxId: 'antebrazo_flex_izq', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.antebrazoFlexor, view: BodyView.front, shape: EllipseShape(cx: 0.189, cy: 0.401, rx: 0.04, ry: 0.075, rot: 25)),
+  MuscleRegion(hitboxId: 'antebrazo_flex_der', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.antebrazoFlexor, view: BodyView.front, shape: EllipseShape(cx: 0.779, cy: 0.367, rx: 0.04, ry: 0.075, rot: 150)),
+  MuscleRegion(hitboxId: 'abd_sup', group: MuscleGroup.core, subgroup: MuscleSubgroup.rectoAbdominalSuperior, view: BodyView.front, shape: EllipseShape(cx: 0.5, cy: 0.321, rx: 0.08, ry: 0.03, rot: 0)),
+  MuscleRegion(hitboxId: 'abd_med', group: MuscleGroup.core, subgroup: MuscleSubgroup.rectoAbdominalSuperior, view: BodyView.front, shape: EllipseShape(cx: 0.498, cy: 0.374, rx: 0.08, ry: 0.03, rot: 0)),
+  MuscleRegion(hitboxId: 'abd_inf', group: MuscleGroup.core, subgroup: MuscleSubgroup.rectoAbdominalInferior, view: BodyView.front, shape: EllipseShape(cx: 0.498, cy: 0.437, rx: 0.075, ry: 0.035, rot: 0)),
+  MuscleRegion(hitboxId: 'oblicuo_izq', group: MuscleGroup.core, subgroup: MuscleSubgroup.oblicuos, view: BodyView.front, shape: EllipseShape(cx: 0.399, cy: 0.439, rx: 0.025, ry: 0.06, rot: 0)),
+  MuscleRegion(hitboxId: 'oblicuo_der', group: MuscleGroup.core, subgroup: MuscleSubgroup.oblicuos, view: BodyView.front, shape: EllipseShape(cx: 0.597, cy: 0.438, rx: 0.025, ry: 0.06, rot: 0)),
+  MuscleRegion(hitboxId: 'aductor_izq', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.aductores, view: BodyView.front, shape: EllipseShape(cx: 0.46, cy: 0.58, rx: 0.025, ry: 0.055, rot: 0)),
+  MuscleRegion(hitboxId: 'aductor_der', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.aductores, view: BodyView.front, shape: EllipseShape(cx: 0.54, cy: 0.58, rx: 0.025, ry: 0.055, rot: 0)),
+  MuscleRegion(hitboxId: 'cuad_recto_izq', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.cuadriceps, view: BodyView.front, shape: EllipseShape(cx: 0.407, cy: 0.602, rx: 0.04, ry: 0.09, rot: 0)),
+  MuscleRegion(hitboxId: 'cuad_recto_der', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.cuadriceps, view: BodyView.front, shape: EllipseShape(cx: 0.584, cy: 0.612, rx: 0.04, ry: 0.09, rot: 0)),
+  MuscleRegion(hitboxId: 'cuad_lat_izq', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.cuadriceps, view: BodyView.front, shape: EllipseShape(cx: 0.364, cy: 0.595, rx: 0.025, ry: 0.08, rot: 0)),
+  MuscleRegion(hitboxId: 'cuad_lat_der', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.cuadriceps, view: BodyView.front, shape: EllipseShape(cx: 0.628, cy: 0.597, rx: 0.025, ry: 0.08, rot: 0)),
+  MuscleRegion(hitboxId: 'cuad_med_izq', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.cuadriceps, view: BodyView.front, shape: EllipseShape(cx: 0.39, cy: 0.717, rx: 0.025, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'cuad_med_der', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.cuadriceps, view: BodyView.front, shape: EllipseShape(cx: 0.624, cy: 0.725, rx: 0.025, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'tibial_izq', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.tibialAnterior, view: BodyView.front, shape: EllipseShape(cx: 0.365, cy: 0.834, rx: 0.022, ry: 0.07, rot: 0)),
+  MuscleRegion(hitboxId: 'tibial_der', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.tibialAnterior, view: BodyView.front, shape: EllipseShape(cx: 0.632, cy: 0.828, rx: 0.022, ry: 0.07, rot: 0)),
+  MuscleRegion(hitboxId: 'cuello_back', group: MuscleGroup.core, subgroup: MuscleSubgroup.cuello, view: BodyView.back, shape: EllipseShape(cx: 0.5, cy: 0.154, rx: 0.028, ry: 0.02, rot: 0)),
+  MuscleRegion(hitboxId: 'trap_med_izq', group: MuscleGroup.espalda, subgroup: MuscleSubgroup.trapecioMedio, view: BodyView.back, shape: EllipseShape(cx: 0.463, cy: 0.239, rx: 0.038, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'trap_med_der', group: MuscleGroup.espalda, subgroup: MuscleSubgroup.trapecioMedio, view: BodyView.back, shape: EllipseShape(cx: 0.54, cy: 0.235, rx: 0.038, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'romboides', group: MuscleGroup.espalda, subgroup: MuscleSubgroup.romboides, view: BodyView.back, shape: EllipseShape(cx: 0.5, cy: 0.265, rx: 0.045, ry: 0.03, rot: 0)),
+  MuscleRegion(hitboxId: 'delt_post_izq', group: MuscleGroup.hombros, subgroup: MuscleSubgroup.deltoidePosterior, view: BodyView.back, shape: EllipseShape(cx: 0.344, cy: 0.231, rx: 0.04, ry: 0.035, rot: 0)),
+  MuscleRegion(hitboxId: 'delt_post_der', group: MuscleGroup.hombros, subgroup: MuscleSubgroup.deltoidePosterior, view: BodyView.back, shape: EllipseShape(cx: 0.658, cy: 0.231, rx: 0.04, ry: 0.035, rot: 0)),
+  MuscleRegion(hitboxId: 'delt_lat_izq_b', group: MuscleGroup.hombros, subgroup: MuscleSubgroup.deltoideLateral, view: BodyView.back, shape: EllipseShape(cx: 0.31, cy: 0.247, rx: 0.03, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'delt_lat_der_b', group: MuscleGroup.hombros, subgroup: MuscleSubgroup.deltoideLateral, view: BodyView.back, shape: EllipseShape(cx: 0.688, cy: 0.247, rx: 0.03, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'triceps_larga_izq', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.tricepsLarga, view: BodyView.back, shape: EllipseShape(cx: 0.294, cy: 0.311, rx: 0.035, ry: 0.055, rot: 25)),
+  MuscleRegion(hitboxId: 'triceps_larga_der', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.tricepsLarga, view: BodyView.back, shape: EllipseShape(cx: 0.708, cy: 0.313, rx: 0.035, ry: 0.055, rot: 153)),
+  MuscleRegion(hitboxId: 'triceps_lat_izq', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.tricepsLateral, view: BodyView.back, shape: EllipseShape(cx: 0.26, cy: 0.295, rx: 0.025, ry: 0.055, rot: 25)),
+  MuscleRegion(hitboxId: 'triceps_lat_der', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.tricepsLateral, view: BodyView.back, shape: EllipseShape(cx: 0.738, cy: 0.309, rx: 0.025, ry: 0.055, rot: 156)),
+  MuscleRegion(hitboxId: 'antebrazo_ext_izq', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.antebrazoExtensor, view: BodyView.back, shape: EllipseShape(cx: 0.183, cy: 0.4, rx: 0.04, ry: 0.08, rot: 33)),
+  MuscleRegion(hitboxId: 'antebrazo_ext_der', group: MuscleGroup.brazos, subgroup: MuscleSubgroup.antebrazoExtensor, view: BodyView.back, shape: EllipseShape(cx: 0.797, cy: 0.387, rx: 0.04, ry: 0.08, rot: 150)),
+  MuscleRegion(hitboxId: 'redondo_izq', group: MuscleGroup.espalda, subgroup: MuscleSubgroup.redondoMayor, view: BodyView.back, shape: EllipseShape(cx: 0.395, cy: 0.245, rx: 0.025, ry: 0.02, rot: 0)),
+  MuscleRegion(hitboxId: 'redondo_der', group: MuscleGroup.espalda, subgroup: MuscleSubgroup.redondoMayor, view: BodyView.back, shape: EllipseShape(cx: 0.605, cy: 0.245, rx: 0.025, ry: 0.02, rot: 0)),
+  MuscleRegion(hitboxId: 'lumbar_v', group: MuscleGroup.espalda, subgroup: MuscleSubgroup.lumbarVisual, view: BodyView.back, shape: EllipseShape(cx: 0.5, cy: 0.385, rx: 0.06, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'gluteo_izq', group: MuscleGroup.gluteos, subgroup: MuscleSubgroup.gluteoMayor, view: BodyView.back, shape: EllipseShape(cx: 0.439, cy: 0.495, rx: 0.045, ry: 0.045, rot: 0)),
+  MuscleRegion(hitboxId: 'gluteo_der', group: MuscleGroup.gluteos, subgroup: MuscleSubgroup.gluteoMayor, view: BodyView.back, shape: EllipseShape(cx: 0.553, cy: 0.492, rx: 0.045, ry: 0.045, rot: 0)),
+  MuscleRegion(hitboxId: 'isquio_bf_izq', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.isquiotibiales, view: BodyView.back, shape: EllipseShape(cx: 0.385, cy: 0.631, rx: 0.03, ry: 0.08, rot: 0)),
+  MuscleRegion(hitboxId: 'isquio_bf_der', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.isquiotibiales, view: BodyView.back, shape: EllipseShape(cx: 0.579, cy: 0.644, rx: 0.03, ry: 0.08, rot: 0)),
+  MuscleRegion(hitboxId: 'isquio_st_izq', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.isquiotibiales, view: BodyView.back, shape: EllipseShape(cx: 0.429, cy: 0.638, rx: 0.025, ry: 0.08, rot: 0)),
+  MuscleRegion(hitboxId: 'isquio_st_der', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.isquiotibiales, view: BodyView.back, shape: EllipseShape(cx: 0.624, cy: 0.642, rx: 0.025, ry: 0.08, rot: 0)),
+  MuscleRegion(hitboxId: 'gastro_izq', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.gastrocnemio, view: BodyView.back, shape: EllipseShape(cx: 0.372, cy: 0.805, rx: 0.033, ry: 0.08, rot: 0)),
+  MuscleRegion(hitboxId: 'gastro_der', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.gastrocnemio, view: BodyView.back, shape: EllipseShape(cx: 0.626, cy: 0.811, rx: 0.033, ry: 0.08, rot: 0)),
+  MuscleRegion(hitboxId: 'soleo_izq', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.soleo, view: BodyView.back, shape: EllipseShape(cx: 0.369, cy: 0.922, rx: 0.025, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'soleo_der', group: MuscleGroup.piernas, subgroup: MuscleSubgroup.soleo, view: BodyView.back, shape: EllipseShape(cx: 0.628, cy: 0.922, rx: 0.025, ry: 0.04, rot: 0)),
+  MuscleRegion(hitboxId: 'trap_sup', group: MuscleGroup.espalda, subgroup: MuscleSubgroup.trapecioSuperior, view: BodyView.back, shape: PolygonShape(points: [Point(0.43, 0.17), Point(0.57, 0.17), Point(0.58, 0.205), Point(0.42, 0.205)])),
+  MuscleRegion(hitboxId: 'dorsal_izq', group: MuscleGroup.espalda, subgroup: MuscleSubgroup.dorsalAncho, view: BodyView.back, shape: PolygonShape(points: [Point(0.404, 0.251), Point(0.469, 0.261), Point(0.474, 0.346), Point(0.379, 0.331)])),
+  MuscleRegion(hitboxId: 'dorsal_der', group: MuscleGroup.espalda, subgroup: MuscleSubgroup.dorsalAncho, view: BodyView.back, shape: PolygonShape(points: [Point(0.595, 0.25), Point(0.53, 0.26), Point(0.525, 0.345), Point(0.62, 0.33)])),
+];
 
-// ── BodyMapData ───────────────────────────────────────────────────────────────
+const List<JointPoint> kJointPoints = [
+  JointPoint(jointId: 'cervical_front', family: JointFamily.cervical, view: BodyView.front, cx: 0.498, cy: 0.172),
+  JointPoint(jointId: 'shoulder_izq_f', family: JointFamily.shoulder, view: BodyView.front, cx: 0.34,  cy: 0.226),
+  JointPoint(jointId: 'shoulder_der_f', family: JointFamily.shoulder, view: BodyView.front, cx: 0.667, cy: 0.229),
+  JointPoint(jointId: 'elbow_izq_f',    family: JointFamily.elbow,    view: BodyView.front, cx: 0.241, cy: 0.342),
+  JointPoint(jointId: 'elbow_der_f',    family: JointFamily.elbow,    view: BodyView.front, cx: 0.758, cy: 0.35),
+  JointPoint(jointId: 'wrist_izq_f',    family: JointFamily.wrist,    view: BodyView.front, cx: 0.132, cy: 0.458),
+  JointPoint(jointId: 'wrist_der_f',    family: JointFamily.wrist,    view: BodyView.front, cx: 0.865, cy: 0.455),
+  JointPoint(jointId: 'hip_izq_f',      family: JointFamily.hip,      view: BodyView.front, cx: 0.418, cy: 0.502),
+  JointPoint(jointId: 'hip_der_f',      family: JointFamily.hip,      view: BodyView.front, cx: 0.582, cy: 0.502),
+  JointPoint(jointId: 'knee_izq_f',     family: JointFamily.knee,     view: BodyView.front, cx: 0.378, cy: 0.72),
+  JointPoint(jointId: 'knee_der_f',     family: JointFamily.knee,     view: BodyView.front, cx: 0.608, cy: 0.721),
+  JointPoint(jointId: 'ankle_izq_f',    family: JointFamily.ankle,    view: BodyView.front, cx: 0.366, cy: 0.91),
+  JointPoint(jointId: 'ankle_der_f',    family: JointFamily.ankle,    view: BodyView.front, cx: 0.632, cy: 0.908),
+  JointPoint(jointId: 'cervical_back',  family: JointFamily.cervical, view: BodyView.back,  cx: 0.5,   cy: 0.15),
+  JointPoint(jointId: 'shoulder_izq_b', family: JointFamily.shoulder, view: BodyView.back,  cx: 0.378, cy: 0.205),
+  JointPoint(jointId: 'shoulder_der_b', family: JointFamily.shoulder, view: BodyView.back,  cx: 0.622, cy: 0.205),
+  JointPoint(jointId: 'elbow_izq_b',    family: JointFamily.elbow,    view: BodyView.back,  cx: 0.232, cy: 0.354),
+  JointPoint(jointId: 'elbow_der_b',    family: JointFamily.elbow,    view: BodyView.back,  cx: 0.765, cy: 0.349),
+  JointPoint(jointId: 'wrist_izq_b',    family: JointFamily.wrist,    view: BodyView.back,  cx: 0.135, cy: 0.453),
+  JointPoint(jointId: 'wrist_der_b',    family: JointFamily.wrist,    view: BodyView.back,  cx: 0.861, cy: 0.453),
+  JointPoint(jointId: 'lumbar_back',    family: JointFamily.lumbar,   view: BodyView.back,  cx: 0.5,   cy: 0.395),
+  JointPoint(jointId: 'hip_izq_b',      family: JointFamily.hip,      view: BodyView.back,  cx: 0.43,  cy: 0.475),
+  JointPoint(jointId: 'hip_der_b',      family: JointFamily.hip,      view: BodyView.back,  cx: 0.57,  cy: 0.475),
+  JointPoint(jointId: 'knee_izq_b',     family: JointFamily.knee,     view: BodyView.back,  cx: 0.39,  cy: 0.717),
+  JointPoint(jointId: 'knee_der_b',     family: JointFamily.knee,     view: BodyView.back,  cx: 0.614, cy: 0.716),
+  JointPoint(jointId: 'ankle_izq_b',    family: JointFamily.ankle,    view: BodyView.back,  cx: 0.372, cy: 0.93),
+  JointPoint(jointId: 'ankle_der_b',    family: JointFamily.ankle,    view: BodyView.back,  cx: 0.629, cy: 0.926),
+];
+
+// ── BodyMapData — compatibilidad con exercise_card, exercise_detail, exercises_screen ──
 
 class BodyMapData {
   BodyMapData._();
 
-  // viewBox: 658 × 1024
-  // Key anchors from SVG path data:
-  //   Shoulders: left x≈242 y≈192, right x≈403 y≈192
-  //   Left arm at elbow: x≈88 y≈511  (arm angles outward-downward)
-  //   Right arm at elbow (mirrored): x≈570 y≈511
-  //   Body center: x=329
-
   static const Map<String, Color> muscleColors = {
-    'Pecho': Color(0xFF3b82f6),
-    'Espalda': Color(0xFF8b5cf6),
-    'Piernas': Color(0xFF22c55e),
-    'Hombros': Color(0xFFf97316),
-    'Brazos': Color(0xFFec4899),
-    'Core': Color(0xFFeab308),
-    'Glúteos': Color(0xFFef4444),
+    'Pecho':    Color(0xFF3b82f6),
+    'Espalda':  Color(0xFF8b5cf6),
+    'Piernas':  Color(0xFF22c55e),
+    'Hombros':  Color(0xFFf97316),
+    'Brazos':   Color(0xFFec4899),
+    'Core':     Color(0xFFeab308),
+    'Glúteos':  Color(0xFFef4444),
   };
 
   static const Map<String, String> muscleGroupDisplayName = {
-    'pecho': 'Pecho',
+    'pecho':   'Pecho',
     'espalda': 'Espalda',
     'piernas': 'Piernas',
     'hombros': 'Hombros',
-    'brazos': 'Brazos',
-    'core': 'Core',
+    'brazos':  'Brazos',
+    'core':    'Core',
     'gluteos': 'Glúteos',
   };
 
   static const Map<String, String> muscleEmoji = {
-    'Pecho': '💪',
+    'Pecho':   '💪',
     'Espalda': '🏋️',
     'Piernas': '🦵',
     'Hombros': '🔝',
-    'Brazos': '💪',
-    'Core': '⚡',
+    'Brazos':  '💪',
+    'Core':    '⚡',
     'Glúteos': '🍑',
   };
 
   static const Map<String, String> jointFamilyNames = {
     'shoulder': 'Hombro',
-    'elbow': 'Codo',
-    'wrist': 'Muñeca',
-    'hip': 'Cadera',
-    'knee': 'Rodilla',
-    'ankle': 'Tobillo',
+    'elbow':    'Codo',
+    'wrist':    'Muñeca',
+    'hip':      'Cadera',
+    'knee':     'Rodilla',
+    'ankle':    'Tobillo',
     'cervical': 'Cervical',
-    'lumbar': 'Lumbar',
+    'lumbar':   'Lumbar',
   };
-
-  // ── Muscle zones — FRONT ──────────────────────────────────────────────────
-  // Arms angle out from shoulder (x≈242/403, y≈192) to elbow (x≈88/570, y≈511)
-  // giving a diagonal slope of ~Δx=-51/+51 per 100px of y.
-
-  static const List<MuscleZone> zonesFront = [
-    // Pectorales (entre clavículas y línea submamaria)
-    MuscleZone(
-      id: 'chest_left',
-      name: 'Pectoral izquierdo',
-      muscleGroup: 'Pecho',
-      points: '222,148 329,143 329,258 222,262',
-    ),
-    MuscleZone(
-      id: 'chest_right',
-      name: 'Pectoral derecho',
-      muscleGroup: 'Pecho',
-      points: '329,143 436,148 436,262 329,258',
-    ),
-    // Deltoides anterior (cubre la cabeza del hombro, frontal)
-    MuscleZone(
-      id: 'shoulder_left',
-      name: 'Hombro izquierdo',
-      muscleGroup: 'Hombros',
-      points: '188,128 242,118 252,205 196,215',
-    ),
-    MuscleZone(
-      id: 'shoulder_right',
-      name: 'Hombro derecho',
-      muscleGroup: 'Hombros',
-      points: '416,118 470,128 462,215 406,205',
-    ),
-    // Bíceps – zona del brazo superior, siguiendo la diagonal del brazo
-    MuscleZone(
-      id: 'bicep_left',
-      name: 'Bíceps izquierdo',
-      muscleGroup: 'Brazos',
-      points: '196,210 242,200 200,400 155,408',
-    ),
-    MuscleZone(
-      id: 'bicep_right',
-      name: 'Bíceps derecho',
-      muscleGroup: 'Brazos',
-      points: '416,200 462,210 503,408 458,400',
-    ),
-    // Antebrazo – continuación diagonal hasta la muñeca
-    MuscleZone(
-      id: 'forearm_left',
-      name: 'Antebrazo izquierdo',
-      muscleGroup: 'Brazos',
-      points: '155,408 200,400 163,538 118,542',
-    ),
-    MuscleZone(
-      id: 'forearm_right',
-      name: 'Antebrazo derecho',
-      muscleGroup: 'Brazos',
-      points: '458,400 503,408 540,542 495,538',
-    ),
-    // Abdominales (zona central del torso)
-    MuscleZone(
-      id: 'abs',
-      name: 'Abdominales',
-      muscleGroup: 'Core',
-      points: '228,258 430,258 424,462 234,462',
-    ),
-    // Oblicuos (laterales del torso)
-    MuscleZone(
-      id: 'oblique_left',
-      name: 'Oblicuo izquierdo',
-      muscleGroup: 'Core',
-      points: '190,210 232,202 240,462 196,445',
-    ),
-    MuscleZone(
-      id: 'oblique_right',
-      name: 'Oblicuo derecho',
-      muscleGroup: 'Core',
-      points: '426,202 468,210 462,445 418,462',
-    ),
-    // Flexores de cadera / inguinal
-    MuscleZone(
-      id: 'hipflexor_left',
-      name: 'Flexor cadera izquierdo',
-      muscleGroup: 'Piernas',
-      points: '234,462 329,462 329,528 237,528',
-    ),
-    MuscleZone(
-      id: 'hipflexor_right',
-      name: 'Flexor cadera derecho',
-      muscleGroup: 'Piernas',
-      points: '329,462 424,462 421,528 329,528',
-    ),
-    // Cuádriceps
-    MuscleZone(
-      id: 'quad_left',
-      name: 'Cuádriceps izquierdo',
-      muscleGroup: 'Piernas',
-      points: '237,528 329,528 329,762 242,762',
-    ),
-    MuscleZone(
-      id: 'quad_right',
-      name: 'Cuádriceps derecho',
-      muscleGroup: 'Piernas',
-      points: '329,528 421,528 416,762 329,762',
-    ),
-    // Tibial anterior / parte frontal de la pierna baja
-    MuscleZone(
-      id: 'tibialis_left',
-      name: 'Tibial izquierdo',
-      muscleGroup: 'Piernas',
-      points: '244,778 314,778 310,948 248,948',
-    ),
-    MuscleZone(
-      id: 'tibialis_right',
-      name: 'Tibial derecho',
-      muscleGroup: 'Piernas',
-      points: '344,778 414,778 410,948 348,948',
-    ),
-  ];
-
-  // ── Muscle zones — BACK ───────────────────────────────────────────────────
-
-  static const List<MuscleZone> zonesBack = [
-    // Trapecio (parte superior de la espalda, entre hombros)
-    MuscleZone(
-      id: 'trapezius',
-      name: 'Trapecio',
-      muscleGroup: 'Espalda',
-      points: '228,135 430,135 412,215 246,215',
-    ),
-    // Dorsal ancho (costado de la espalda – gran superficie)
-    MuscleZone(
-      id: 'lat_left',
-      name: 'Dorsal izquierdo',
-      muscleGroup: 'Espalda',
-      points: '188,208 320,208 324,445 192,412',
-    ),
-    MuscleZone(
-      id: 'lat_right',
-      name: 'Dorsal derecho',
-      muscleGroup: 'Espalda',
-      points: '338,208 470,208 466,412 334,445',
-    ),
-    // Deltoides posterior
-    MuscleZone(
-      id: 'reardelt_left',
-      name: 'Deltoides posterior izquierdo',
-      muscleGroup: 'Hombros',
-      points: '188,120 242,110 252,212 196,220',
-    ),
-    MuscleZone(
-      id: 'reardelt_right',
-      name: 'Deltoides posterior derecho',
-      muscleGroup: 'Hombros',
-      points: '416,110 470,120 462,220 406,212',
-    ),
-    // Tríceps (brazo posterior, misma diagonal que bíceps)
-    MuscleZone(
-      id: 'tricep_left',
-      name: 'Tríceps izquierdo',
-      muscleGroup: 'Brazos',
-      points: '196,215 242,205 200,398 155,406',
-    ),
-    MuscleZone(
-      id: 'tricep_right',
-      name: 'Tríceps derecho',
-      muscleGroup: 'Brazos',
-      points: '416,205 462,215 503,406 458,398',
-    ),
-    // Antebrazo posterior
-    MuscleZone(
-      id: 'forearm_left_back',
-      name: 'Antebrazo izquierdo',
-      muscleGroup: 'Brazos',
-      points: '155,406 200,398 163,532 118,536',
-    ),
-    MuscleZone(
-      id: 'forearm_right_back',
-      name: 'Antebrazo derecho',
-      muscleGroup: 'Brazos',
-      points: '458,398 503,406 540,536 495,532',
-    ),
-    // Erector espinal (columna central posterior)
-    MuscleZone(
-      id: 'erector',
-      name: 'Erector espinal',
-      muscleGroup: 'Espalda',
-      points: '282,248 376,248 376,458 282,458',
-    ),
-    // Glúteos
-    MuscleZone(
-      id: 'glute_left',
-      name: 'Glúteo izquierdo',
-      muscleGroup: 'Glúteos',
-      points: '234,458 329,458 329,572 237,572',
-    ),
-    MuscleZone(
-      id: 'glute_right',
-      name: 'Glúteo derecho',
-      muscleGroup: 'Glúteos',
-      points: '329,458 424,458 421,572 329,572',
-    ),
-    // Isquiotibiales
-    MuscleZone(
-      id: 'hamstring_left',
-      name: 'Isquiotibial izquierdo',
-      muscleGroup: 'Piernas',
-      points: '237,572 329,572 329,762 242,762',
-    ),
-    MuscleZone(
-      id: 'hamstring_right',
-      name: 'Isquiotibial derecho',
-      muscleGroup: 'Piernas',
-      points: '329,572 421,572 416,762 329,762',
-    ),
-    // Gemelos
-    MuscleZone(
-      id: 'calf_left',
-      name: 'Gemelo izquierdo',
-      muscleGroup: 'Piernas',
-      points: '244,778 313,778 309,948 248,948',
-    ),
-    MuscleZone(
-      id: 'calf_right',
-      name: 'Gemelo derecho',
-      muscleGroup: 'Piernas',
-      points: '345,778 414,778 410,948 349,948',
-    ),
-  ];
-
-  // ── Joint points — FRONT ──────────────────────────────────────────────────
-
-  static const List<JointPoint> jointsFront = [
-    JointPoint(id: 'shoulder_left',  name: 'Hombro izquierdo',  x: 225, y: 192, family: 'shoulder'),
-    JointPoint(id: 'shoulder_right', name: 'Hombro derecho',    x: 433, y: 192, family: 'shoulder'),
-    JointPoint(id: 'elbow_left',     name: 'Codo izquierdo',    x: 168, y: 410, family: 'elbow'),
-    JointPoint(id: 'elbow_right',    name: 'Codo derecho',      x: 490, y: 410, family: 'elbow'),
-    JointPoint(id: 'wrist_left',     name: 'Muñeca izquierda',  x: 132, y: 542, family: 'wrist'),
-    JointPoint(id: 'wrist_right',    name: 'Muñeca derecha',    x: 526, y: 542, family: 'wrist'),
-    JointPoint(id: 'hip_left',       name: 'Cadera izquierda',  x: 268, y: 520, family: 'hip'),
-    JointPoint(id: 'hip_right',      name: 'Cadera derecha',    x: 390, y: 520, family: 'hip'),
-    JointPoint(id: 'knee_left',      name: 'Rodilla izquierda', x: 256, y: 770, family: 'knee'),
-    JointPoint(id: 'knee_right',     name: 'Rodilla derecha',   x: 402, y: 770, family: 'knee'),
-    JointPoint(id: 'ankle_left',     name: 'Tobillo izquierdo', x: 252, y: 955, family: 'ankle'),
-    JointPoint(id: 'ankle_right',    name: 'Tobillo derecho',   x: 406, y: 955, family: 'ankle'),
-  ];
-
-  // ── Joint points — BACK ───────────────────────────────────────────────────
-
-  static const List<JointPoint> jointsBack = [
-    JointPoint(id: 'cervical',          name: 'Cervical',             x: 329, y: 120, family: 'cervical'),
-    JointPoint(id: 'shoulder_left_back',  name: 'Hombro izquierdo',   x: 225, y: 198, family: 'shoulder'),
-    JointPoint(id: 'shoulder_right_back', name: 'Hombro derecho',     x: 433, y: 198, family: 'shoulder'),
-    JointPoint(id: 'elbow_left_back',   name: 'Codo izquierdo',       x: 168, y: 408, family: 'elbow'),
-    JointPoint(id: 'elbow_right_back',  name: 'Codo derecho',         x: 490, y: 408, family: 'elbow'),
-    JointPoint(id: 'wrist_left_back',   name: 'Muñeca izquierda',     x: 132, y: 535, family: 'wrist'),
-    JointPoint(id: 'wrist_right_back',  name: 'Muñeca derecha',       x: 526, y: 535, family: 'wrist'),
-    JointPoint(id: 'lumbar',            name: 'Lumbar',               x: 329, y: 450, family: 'lumbar'),
-    JointPoint(id: 'hip_left_back',     name: 'Cadera izquierda',     x: 268, y: 522, family: 'hip'),
-    JointPoint(id: 'hip_right_back',    name: 'Cadera derecha',       x: 390, y: 522, family: 'hip'),
-    JointPoint(id: 'knee_left_back',    name: 'Rodilla izquierda',    x: 256, y: 770, family: 'knee'),
-    JointPoint(id: 'knee_right_back',   name: 'Rodilla derecha',      x: 402, y: 770, family: 'knee'),
-    JointPoint(id: 'ankle_left_back',   name: 'Tobillo izquierdo',    x: 252, y: 955, family: 'ankle'),
-    JointPoint(id: 'ankle_right_back',  name: 'Tobillo derecho',      x: 406, y: 955, family: 'ankle'),
-  ];
-
-  // ── Joint exercises ───────────────────────────────────────────────────────
-
-  static const List<JointExercise> jointExercises = [
-    // Shoulder
-    JointExercise(
-      id: 'sj1',
-      name: 'Rotaciones de hombro',
-      type: 'movilidad',
-      jointFamily: 'shoulder',
-      instructions: [
-        'Brazos extendidos a los lados.',
-        'Realiza círculos pequeños hacia adelante.',
-        'Luego hacia atrás.',
-      ],
-      whenToUse: 'Antes de entrenar pecho, espalda o hombros.',
-    ),
-    JointExercise(
-      id: 'sj2',
-      name: 'Band Pull-Aparts',
-      type: 'fortalecimiento',
-      jointFamily: 'shoulder',
-      instructions: [
-        'Sostén una banda elástica frente a ti.',
-        'Separa los brazos hasta que la banda toque el pecho.',
-        'Vuelve controladamente.',
-      ],
-      benefits: 'Fortalece los rotadores externos y mejora la postura.',
-    ),
-    JointExercise(
-      id: 'sj3',
-      name: 'Rotación externa con banda',
-      type: 'fortalecimiento',
-      jointFamily: 'shoulder',
-      instructions: [
-        'Codo pegado al cuerpo a 90°.',
-        'Rota el brazo hacia afuera contra la resistencia.',
-        'Vuelve lentamente.',
-      ],
-      whenToUse: 'Rehabilitación y prevención de lesiones del manguito rotador.',
-    ),
-    // Elbow
-    JointExercise(
-      id: 'ej1',
-      name: 'Flexo-extensión de codo',
-      type: 'movilidad',
-      jointFamily: 'elbow',
-      instructions: [
-        'Brazo extendido.',
-        'Flexiona lentamente el codo.',
-        'Extiende completamente.',
-        'Repite 10 veces.',
-      ],
-      whenToUse: 'Calentamiento antes de ejercicios de brazos.',
-    ),
-    JointExercise(
-      id: 'ej2',
-      name: 'Supinación/Pronación',
-      type: 'movilidad',
-      jointFamily: 'elbow',
-      instructions: [
-        'Codo a 90°, palma mirando arriba.',
-        'Gira el antebrazo hacia abajo.',
-        'Vuelve a la posición inicial.',
-      ],
-      benefits: 'Mejora la movilidad del antebrazo.',
-    ),
-    // Wrist
-    JointExercise(
-      id: 'wj1',
-      name: 'Flexión/Extensión de muñeca',
-      type: 'movilidad',
-      jointFamily: 'wrist',
-      instructions: [
-        'Antebrazo apoyado.',
-        'Flexiona la muñeca hacia arriba y hacia abajo.',
-        '10 repeticiones cada dirección.',
-      ],
-      whenToUse: 'Antes de ejercicios con barra o mancuernas.',
-    ),
-    JointExercise(
-      id: 'wj2',
-      name: 'Círculos de muñeca',
-      type: 'movilidad',
-      jointFamily: 'wrist',
-      instructions: [
-        'Realiza círculos lentos con la muñeca.',
-        '5 en cada dirección.',
-      ],
-      benefits: 'Lubrica la articulación de la muñeca.',
-    ),
-    // Hip
-    JointExercise(
-      id: 'hj1',
-      name: 'Círculos de cadera',
-      type: 'movilidad',
-      jointFamily: 'hip',
-      instructions: [
-        'De pie, manos en caderas.',
-        'Realiza círculos amplios con la cadera.',
-        '5 en cada sentido.',
-      ],
-      whenToUse: 'Antes de sentadillas, peso muerto o hip thrust.',
-    ),
-    JointExercise(
-      id: 'hj2',
-      name: 'Hip Airplane',
-      type: 'movilidad',
-      jointFamily: 'hip',
-      instructions: [
-        'De pie en una pierna.',
-        'Inclina el torso mientras rotas la cadera.',
-        'Mantén el equilibrio 2 seg.',
-      ],
-      benefits: 'Mejora el control y la estabilidad de cadera.',
-    ),
-    JointExercise(
-      id: 'hj3',
-      name: 'Estiramiento 90/90',
-      type: 'movilidad',
-      jointFamily: 'hip',
-      instructions: [
-        'Siéntate con ambas rodillas a 90°.',
-        'Rota suavemente hacia adelante y atrás.',
-        'Mantén 30 seg por lado.',
-      ],
-      benefits: 'Excelente para la rotación interna y externa de cadera.',
-    ),
-    // Knee
-    JointExercise(
-      id: 'kj1',
-      name: 'Terminal Knee Extension (TKE)',
-      type: 'fortalecimiento',
-      jointFamily: 'knee',
-      instructions: [
-        'Con banda en la parte posterior de la rodilla.',
-        'Extiende completamente la rodilla.',
-        'Mantén 2 seg y relaja.',
-      ],
-      whenToUse: 'Rehabilitación y activación del vasto medial.',
-    ),
-    JointExercise(
-      id: 'kj2',
-      name: 'Sentadilla con pausa',
-      type: 'fortalecimiento',
-      jointFamily: 'knee',
-      instructions: [
-        'Sentadilla normal.',
-        'Pausa 3 seg en el punto bajo.',
-        'Sube controladamente.',
-      ],
-      benefits: 'Fortalece los tendones y mejora el control articular.',
-    ),
-    // Ankle
-    JointExercise(
-      id: 'aj1',
-      name: 'Círculos de tobillo',
-      type: 'movilidad',
-      jointFamily: 'ankle',
-      instructions: [
-        'Sentado, levanta un pie.',
-        'Realiza círculos amplios con el pie.',
-        '5 en cada dirección.',
-      ],
-      whenToUse: 'Antes de ejercicios de piernas.',
-    ),
-    JointExercise(
-      id: 'aj2',
-      name: 'Movilidad de tobillo en pared',
-      type: 'movilidad',
-      jointFamily: 'ankle',
-      instructions: [
-        'De pie frente a una pared, pie a ~10cm.',
-        'Lleva la rodilla a tocar la pared sin levantar el talón.',
-        '10 reps.',
-      ],
-      benefits: 'Mejora la dorsiflexión esencial para sentadillas.',
-    ),
-    // Cervical
-    JointExercise(
-      id: 'cj1',
-      name: 'Chin Tucks',
-      type: 'fortalecimiento',
-      jointFamily: 'cervical',
-      instructions: [
-        'De pie o sentado.',
-        'Lleva la barbilla hacia atrás (doble barbilla).',
-        'Mantén 5 seg.',
-      ],
-      benefits: 'Corrige la postura de la cabeza adelantada.',
-    ),
-    JointExercise(
-      id: 'cj2',
-      name: 'Estiramiento lateral cervical',
-      type: 'movilidad',
-      jointFamily: 'cervical',
-      instructions: [
-        'Inclina la cabeza hacia un hombro.',
-        'Ayuda suavemente con la mano.',
-        'Mantén 20 seg por lado.',
-      ],
-      whenToUse: 'Para aliviar tensión cervical.',
-    ),
-    // Lumbar
-    JointExercise(
-      id: 'lj1',
-      name: 'Cat-Cow',
-      type: 'movilidad',
-      jointFamily: 'lumbar',
-      instructions: [
-        'En cuatro apoyos.',
-        'Arquea la espalda hacia arriba (Cat).',
-        'Luego hacia abajo (Cow).',
-        '10 ciclos lentos.',
-      ],
-      whenToUse: 'Calentamiento lumbar antes de peso muerto o sentadillas.',
-    ),
-    JointExercise(
-      id: 'lj2',
-      name: 'Bird Dog',
-      type: 'fortalecimiento',
-      jointFamily: 'lumbar',
-      instructions: [
-        'En cuatro apoyos.',
-        'Extiende brazo opuesto y pierna simultáneamente.',
-        'Mantén 3 seg, alterna lados.',
-      ],
-      benefits: 'Estabiliza la columna lumbar y el core.',
-    ),
-  ];
 }

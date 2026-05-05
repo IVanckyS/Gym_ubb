@@ -62,6 +62,7 @@ class ExerciseCard extends StatelessWidget {
   }
 
   static const _isometricColor = Color(0xFF818cf8);
+  static const _calisteniaColor = Color(0xFF4ECDC4);
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +72,7 @@ class ExerciseCard extends StatelessWidget {
     final equipment = exercise['equipment'] as String?;
     final exerciseType = exercise['exerciseType'] as String? ?? 'dinamico';
     final isIsometric = exerciseType == 'isometrico';
+    final isCalistenia = exerciseType == 'calistenia';
 
     final muscleColor = _muscleGroupColor(muscleGroup);
     final difficultyColor = _difficultyColor(difficulty);
@@ -123,6 +125,10 @@ class ExerciseCard extends StatelessWidget {
                         if (isIsometric) ...[
                           const SizedBox(width: 6),
                           const _Badge(label: 'Isométrico', color: _isometricColor),
+                        ],
+                        if (isCalistenia) ...[
+                          const SizedBox(width: 6),
+                          const _Badge(label: 'Calistenia', color: _calisteniaColor),
                         ],
                       ],
                     ),
@@ -201,6 +207,12 @@ class ExerciseCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         const Expanded(
                           child: _Badge(label: 'Isométrico', color: _isometricColor),
+                        ),
+                      ],
+                      if (isCalistenia) ...[
+                        const SizedBox(width: 4),
+                        const Expanded(
+                          child: _Badge(label: 'Calistenia', color: _calisteniaColor),
                         ),
                       ],
                     ],

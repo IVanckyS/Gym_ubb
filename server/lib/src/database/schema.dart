@@ -347,8 +347,11 @@ const List<String> _schemaStatements = [
   'CREATE INDEX IF NOT EXISTS idx_audit_created ON security_audit_log(created_at DESC)',
 
   // ── Columnas adicionales (idempotentes) ───────────────────────────────────
-  "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS exercise_type TEXT NOT NULL DEFAULT 'dinamico' CHECK (exercise_type IN ('dinamico', 'isometrico'))",
+  "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS exercise_type TEXT NOT NULL DEFAULT 'dinamico'",
+  'ALTER TABLE exercises DROP CONSTRAINT IF EXISTS exercises_exercise_type_check',
+  "ALTER TABLE exercises ADD CONSTRAINT exercises_exercise_type_check CHECK (exercise_type IN ('dinamico', 'isometrico', 'calistenia'))",
   'ALTER TABLE workout_sets ADD COLUMN IF NOT EXISTS duration_seconds INTEGER',
+  'ALTER TABLE routine_day_exercises ADD COLUMN IF NOT EXISTS duration_seconds INTEGER',
   'ALTER TABLE users ADD COLUMN IF NOT EXISTS faculty TEXT',
   'ALTER TABLE articles ADD COLUMN IF NOT EXISTS image_url TEXT',
   'ALTER TABLE articles ADD COLUMN IF NOT EXISTS bibliography TEXT',
@@ -443,6 +446,42 @@ const List<String> _schemaStatements = [
   )
   ''',
   'CREATE INDEX IF NOT EXISTS idx_event_interests_event ON event_interests(event_id)',
+
+  // ── HIIT ─────────────────────────────────────────────────────────────────────
+  "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'hiit_mode') THEN CREATE TYPE hiit_mode AS ENUM ('tabata', 'emom', 'amrap', 'for_time', 'mix'); END IF; END \$\$",
+
+  '''
+  CREATE TABLE IF NOT EXISTS hiit_workouts (
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID         REFERENCES users(id) ON DELETE CASCADE,
+    name       VARCHAR(255) NOT NULL,
+    mode       hiit_mode    NOT NULL,
+    config     JSONB        NOT NULL DEFAULT \'{}\',
+    is_public  BOOLEAN      NOT NULL DEFAULT false,
+    is_active  BOOLEAN      NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  )
+  ''',
+
+  '''
+  CREATE TABLE IF NOT EXISTS hiit_sessions (
+    id                     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    hiit_workout_id        UUID         REFERENCES hiit_workouts(id) ON DELETE SET NULL,
+    name                   VARCHAR(255) NOT NULL,
+    mode                   hiit_mode    NOT NULL,
+    config                 JSONB        NOT NULL DEFAULT \'{}\',
+    total_duration_seconds INTEGER,
+    rounds_completed       INTEGER      NOT NULL DEFAULT 0,
+    started_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    ended_at               TIMESTAMPTZ,
+    created_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+  )
+  ''',
+
+  'CREATE INDEX IF NOT EXISTS idx_hiit_workouts_user ON hiit_workouts(user_id)',
+  'CREATE INDEX IF NOT EXISTS idx_hiit_sessions_user ON hiit_sessions(user_id, started_at DESC)',
 
   // ── Función trigger: updated_at automático ────────────────────────────────
   r'''

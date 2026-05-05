@@ -110,6 +110,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
       _exerciseTypes[exerciseId] = exerciseType;
 
       final targetSets = ex['targetSets'] as int? ?? 3;
+      final targetDuration = (ex['targetDurationSeconds'] as num?)?.toInt();
       final sets = (ex['sets'] as List? ?? []).cast<Map<String, dynamic>>();
 
       for (int i = 1; i <= targetSets; i++) {
@@ -123,10 +124,11 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
             : '';
 
         // Segunda columna: reps para dinámicos, duración para isométricos
+        // Para isométricos, si no hay set previo, pre-llenar con el target de la rutina
         final secondText = isIsometric
             ? (existing?['durationSeconds'] != null
                 ? existing!['durationSeconds'].toString()
-                : '')
+                : (targetDuration != null ? targetDuration.toString() : ''))
             : (existing?['reps'] != null ? existing!['reps'].toString() : '');
 
         _weightControllers.putIfAbsent(key, () => TextEditingController(text: weightText));
@@ -392,6 +394,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                     final ex = exercises[i];
                     final exId = ex['exerciseId'] as String;
                     final isIsometric = _exerciseTypes[exId] == 'isometrico';
+                    final isCalistenia = _exerciseTypes[exId] == 'calistenia';
                     return _ExerciseCard(
                       exercise: ex,
                       weightControllers: _weightControllers,
@@ -400,6 +403,7 @@ class _WorkoutSessionScreenState extends State<WorkoutSessionScreen> {
                       setLoading: _setLoading,
                       onToggleSet: _toggleSet,
                       isIsometric: isIsometric,
+                      isCalistenia: isCalistenia,
                       weightUnitLabel: _unit == WeightUnit.lbs ? 'LBS' : 'KG',
                     );
                   },
@@ -603,6 +607,7 @@ class _ExerciseCard extends StatefulWidget {
     required this.setLoading,
     required this.onToggleSet,
     this.isIsometric = false,
+    this.isCalistenia = false,
     this.weightUnitLabel = 'KG',
   });
 
@@ -613,6 +618,7 @@ class _ExerciseCard extends StatefulWidget {
   final Map<String, bool> setLoading;
   final Future<void> Function(String exerciseId, int setNumber, int restSeconds) onToggleSet;
   final bool isIsometric;
+  final bool isCalistenia;
   final String weightUnitLabel;
 
   @override
@@ -742,9 +748,13 @@ class _ExerciseCardState extends State<_ExerciseCard> {
                         const SizedBox(width: 32),
                         if (!widget.isIsometric) ...[
                           Expanded(
-                            child: Text(widget.weightUnitLabel,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: context.colorTextMuted, fontSize: 11)),
+                            child: Text(
+                              widget.isCalistenia
+                                  ? 'LASTRE'
+                                  : widget.weightUnitLabel,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: context.colorTextMuted, fontSize: 11),
+                            ),
                           ),
                           const SizedBox(width: 8),
                         ],

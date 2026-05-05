@@ -81,9 +81,11 @@ class _CreateRoutineScreenState extends State<CreateRoutineScreen> {
               'id': ex['exerciseId'].toString(),
               'name': (ex['exerciseName'] ?? '').toString(),
               'muscleGroup': (ex['muscleGroup'] ?? '').toString(),
+              'exerciseType': (ex['exerciseType'] ?? 'dinamico').toString(),
               'sets': (ex['sets'] as num?)?.toInt() ?? 3,
               'reps': (ex['reps'] ?? '8-12').toString(),
               'restSeconds': (ex['restSeconds'] as num?)?.toInt() ?? 90,
+              'durationSeconds': (ex['durationSeconds'] as num?)?.toInt(),
             })
             .toList();
       }
@@ -119,11 +121,13 @@ class _CreateRoutineScreenState extends State<CreateRoutineScreen> {
           final ex = rawExercises[j];
           final exerciseId = ex['id']?.toString() ?? '';
           if (exerciseId.isEmpty) continue;
+          final isIso = (ex['exerciseType'] ?? 'dinamico').toString() == 'isometrico';
           exercises.add(<String, dynamic>{
             'exerciseId': exerciseId,
             'sets': (ex['sets'] as num?)?.toInt() ?? 3,
             'reps': (ex['reps'] ?? '8-12').toString(),
             'restSeconds': (ex['restSeconds'] as num?)?.toInt() ?? 90,
+            if (isIso) 'durationSeconds': (ex['durationSeconds'] as num?)?.toInt() ?? 30,
             'orderIndex': j,
           });
         }
@@ -623,6 +627,8 @@ class _Step3State extends State<_Step3> {
     if (exerciseId.isEmpty) return;
     final defaults = _defaultsForGoal(widget.goal);
     bool added = false;
+    final exerciseType = (exercise['exerciseType'] ?? 'dinamico').toString();
+    final isIso = exerciseType == 'isometrico';
     setState(() {
       widget.dayExercises.putIfAbsent(day, () => <Map<String, dynamic>>[]);
       if (!widget.dayExercises[day]!.any((e) => '${e['id']}' == exerciseId)) {
@@ -630,9 +636,11 @@ class _Step3State extends State<_Step3> {
           'id': exerciseId,
           'name': '${exercise['name'] ?? ''}',
           'muscleGroup': '${exercise['muscleGroup'] ?? ''}',
+          'exerciseType': exerciseType,
           'sets': defaults['sets'],
           'reps': defaults['reps'],
           'restSeconds': defaults['restSeconds'],
+          if (isIso) 'durationSeconds': 30,
         });
         added = true;
       }
@@ -664,6 +672,7 @@ class _Step3State extends State<_Step3> {
 
   void _editExercise(BuildContext context, String day, int index) {
     final ex = widget.dayExercises[day]![index];
+    final isIso = (ex['exerciseType'] ?? 'dinamico').toString() == 'isometrico';
     showDialog(
       context: context,
       builder: (ctx) => _ExerciseEditDialog(
@@ -671,14 +680,17 @@ class _Step3State extends State<_Step3> {
         sets: (ex['sets'] as num?)?.toInt() ?? 3,
         reps: '${ex['reps'] ?? '8-12'}',
         restSeconds: (ex['restSeconds'] as num?)?.toInt() ?? 90,
+        durationSeconds: (ex['durationSeconds'] as num?)?.toInt() ?? 30,
+        isIsometric: isIso,
         goal: widget.goal,
-        onSave: (sets, reps, rest) {
+        onSave: (sets, reps, rest, duration) {
           setState(() {
             widget.dayExercises[day]![index] = <String, dynamic>{
               ...ex,
               'sets': sets,
               'reps': reps,
               'restSeconds': rest,
+              if (isIso) 'durationSeconds': duration,
             };
           });
         },
@@ -855,10 +867,16 @@ class _DayExercisesCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('${e.value['name'] ?? ''}', style: TextStyle(color: context.colorTextPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
-                        Text(
-                          '${e.value['sets']} series × ${e.value['reps']} reps · ${e.value['restSeconds']}s',
-                          style: TextStyle(color: context.colorTextSecondary, fontSize: 11),
-                        ),
+                        Builder(builder: (_) {
+                          final isIso = (e.value['exerciseType'] ?? 'dinamico').toString() == 'isometrico';
+                          final detail = isIso
+                              ? '${e.value['sets']} series × ${e.value['durationSeconds'] ?? 30}s · descanso ${e.value['restSeconds']}s'
+                              : '${e.value['sets']} series × ${e.value['reps']} reps · ${e.value['restSeconds']}s';
+                          return Text(
+                            detail,
+                            style: TextStyle(color: context.colorTextSecondary, fontSize: 11),
+                          );
+                        }),
                       ],
                     ),
                   ),
@@ -1163,6 +1181,8 @@ class _ExerciseEditDialog extends StatefulWidget {
     required this.sets,
     required this.reps,
     required this.restSeconds,
+    required this.durationSeconds,
+    required this.isIsometric,
     required this.goal,
     required this.onSave,
   });
@@ -1171,8 +1191,10 @@ class _ExerciseEditDialog extends StatefulWidget {
   final int sets;
   final String reps;
   final int restSeconds;
+  final int durationSeconds;
+  final bool isIsometric;
   final String goal;
-  final void Function(int sets, String reps, int restSeconds) onSave;
+  final void Function(int sets, String reps, int restSeconds, int durationSeconds) onSave;
 
   @override
   State<_ExerciseEditDialog> createState() => _ExerciseEditDialogState();
@@ -1182,6 +1204,7 @@ class _ExerciseEditDialogState extends State<_ExerciseEditDialog> {
   late int _sets;
   late String _reps;
   late int _restSeconds;
+  late int _durationSeconds;
   late TextEditingController _repsCtrl;
 
   // Presets por objetivo: (label, sets, reps, rest)
@@ -1198,6 +1221,7 @@ class _ExerciseEditDialogState extends State<_ExerciseEditDialog> {
     _sets = widget.sets;
     _reps = widget.reps;
     _restSeconds = widget.restSeconds;
+    _durationSeconds = widget.durationSeconds;
     _repsCtrl = TextEditingController(text: widget.reps);
   }
 
@@ -1219,7 +1243,22 @@ class _ExerciseEditDialogState extends State<_ExerciseEditDialog> {
         children: [
           Text(widget.exerciseName, style: TextStyle(color: context.colorTextPrimary, fontSize: 15, fontWeight: FontWeight.w700)),
           SizedBox(height: 4),
-          Text('Editar series y repeticiones', style: TextStyle(color: context.colorTextSecondary, fontSize: 12, fontWeight: FontWeight.w400)),
+          Text(
+            widget.isIsometric ? 'Editar series y duración' : 'Editar series y repeticiones',
+            style: TextStyle(color: context.colorTextSecondary, fontSize: 12, fontWeight: FontWeight.w400),
+          ),
+          if (widget.isIsometric) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.accentGreen.withAlpha(35),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text('⏱ Isométrico',
+                  style: TextStyle(color: AppColors.accentGreen, fontSize: 10, fontWeight: FontWeight.w700)),
+            ),
+          ],
         ],
       ),
       content: SizedBox(
@@ -1228,35 +1267,36 @@ class _ExerciseEditDialogState extends State<_ExerciseEditDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Presets
-            Text('Presets recomendados', style: TextStyle(color: context.colorTextMuted, fontSize: 11, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: presets.map((p) {
-                final (label, sets, reps, rest) = p;
-                final selected = _sets == sets && _reps == reps && _restSeconds == rest;
-                return GestureDetector(
-                  onTap: () => setState(() {
-                    _sets = sets; _reps = reps; _restSeconds = rest;
-                    _repsCtrl.text = reps;
-                  }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: selected ? AppColors.accentPrimary.withAlpha(40) : AppColors.bgTertiary,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: selected ? AppColors.accentPrimary : AppColors.border, width: selected ? 1.5 : 1),
+            if (!widget.isIsometric) ...[
+              Text('Presets recomendados', style: TextStyle(color: context.colorTextMuted, fontSize: 11, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: presets.map((p) {
+                  final (label, sets, reps, rest) = p;
+                  final selected = _sets == sets && _reps == reps && _restSeconds == rest;
+                  return GestureDetector(
+                    onTap: () => setState(() {
+                      _sets = sets; _reps = reps; _restSeconds = rest;
+                      _repsCtrl.text = reps;
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: selected ? AppColors.accentPrimary.withAlpha(40) : AppColors.bgTertiary,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: selected ? AppColors.accentPrimary : AppColors.border, width: selected ? 1.5 : 1),
+                      ),
+                      child: Text(label, style: TextStyle(color: selected ? AppColors.accentPrimary : AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
                     ),
-                    child: Text(label, style: TextStyle(color: selected ? AppColors.accentPrimary : AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 10),
-            _RirHintRow(goal: widget.goal),
-            SizedBox(height: 20),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 10),
+              _RirHintRow(goal: widget.goal),
+              SizedBox(height: 20),
+            ],
             // Series
             Text('Series', style: TextStyle(color: context.colorTextMuted, fontSize: 11, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
@@ -1270,20 +1310,40 @@ class _ExerciseEditDialogState extends State<_ExerciseEditDialog> {
               ],
             ),
             SizedBox(height: 16),
-            // Repeticiones
-            Text('Repeticiones (ej: 8-12 ó 15)', style: TextStyle(color: context.colorTextMuted, fontSize: 11, fontWeight: FontWeight.w600)),
-            SizedBox(height: 8),
-            TextField(
-              controller: _repsCtrl,
-              style: TextStyle(color: context.colorTextPrimary, fontSize: 14),
-              onChanged: (v) => _reps = v,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: AppColors.bgTertiary,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+            if (widget.isIsometric) ...[
+              // Duración (segundos)
+              Text('Duración por serie', style: TextStyle(color: context.colorTextMuted, fontSize: 11, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _CounterButton(icon: Icons.remove, onTap: _durationSeconds > 5 ? () => setState(() => _durationSeconds -= 5) : null),
+                  SizedBox(width: 16),
+                  Text(
+                    _durationSeconds >= 60
+                        ? '${(_durationSeconds / 60).floor()}:${(_durationSeconds % 60).toString().padLeft(2, '0')} min'
+                        : '$_durationSeconds s',
+                    style: TextStyle(color: context.colorTextPrimary, fontSize: 22, fontWeight: FontWeight.w700),
+                  ),
+                  SizedBox(width: 16),
+                  _CounterButton(icon: Icons.add, onTap: _durationSeconds < 600 ? () => setState(() => _durationSeconds += 5) : null),
+                ],
               ),
-            ),
+            ] else ...[
+              // Repeticiones
+              Text('Repeticiones (ej: 8-12 ó 15)', style: TextStyle(color: context.colorTextMuted, fontSize: 11, fontWeight: FontWeight.w600)),
+              SizedBox(height: 8),
+              TextField(
+                controller: _repsCtrl,
+                style: TextStyle(color: context.colorTextPrimary, fontSize: 14),
+                onChanged: (v) => _reps = v,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: AppColors.bgTertiary,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                ),
+              ),
+            ],
             SizedBox(height: 16),
             // Descanso
             Text('Descanso entre series', style: TextStyle(color: context.colorTextMuted, fontSize: 11, fontWeight: FontWeight.w600)),
@@ -1309,7 +1369,7 @@ class _ExerciseEditDialogState extends State<_ExerciseEditDialog> {
         FilledButton(
           onPressed: () {
             final reps = _repsCtrl.text.trim().isEmpty ? _reps : _repsCtrl.text.trim();
-            widget.onSave(_sets, reps, _restSeconds);
+            widget.onSave(_sets, reps, _restSeconds, _durationSeconds);
             Navigator.pop(context);
           },
           style: FilledButton.styleFrom(backgroundColor: AppColors.accentPrimary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),

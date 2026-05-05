@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/section_banner.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/services/articles_service.dart';
 
@@ -75,22 +76,6 @@ class _EducationScreenState extends State<EducationScreen>
 
     return Scaffold(
       backgroundColor: context.colorBgPrimary,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Educación'),
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabs,
-          labelColor: AppColors.accentPrimary,
-          unselectedLabelColor: AppColors.textSecondary,
-          indicatorColor: AppColors.accentPrimary,
-          indicatorSize: TabBarIndicatorSize.label,
-          tabs: const [
-            Tab(text: 'Artículos'),
-            Tab(text: 'Favoritos'),
-          ],
-        ),
-      ),
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: () => _showArticleForm(context),
@@ -100,11 +85,39 @@ class _EducationScreenState extends State<EducationScreen>
                   style: TextStyle(color: Colors.white)),
             )
           : null,
-      body: TabBarView(
-        controller: _tabs,
+      body: Column(
         children: [
-          _ArticlesTab(key: _articlesKey, service: _service),
-          _FavoritesTab(service: _service),
+          const SectionBanner(
+            title: 'Educación',
+            subtitle: 'Artículos · Biomecánica · Nutrición',
+            label: 'Conocimiento',
+            accentColor: Color(0xFFa09af5),
+            iconName: 'gradcap',
+            gradientColors: [Color(0xFF0a0618), Color(0xFF160a2e)],
+          ),
+          Container(
+            color: context.colorBgSecondary,
+            child: TabBar(
+              controller: _tabs,
+              labelColor: AppColors.accentPrimary,
+              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: AppColors.accentPrimary,
+              indicatorSize: TabBarIndicatorSize.label,
+              tabs: const [
+                Tab(text: 'Artículos'),
+                Tab(text: 'Favoritos'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                _ArticlesTab(key: _articlesKey, service: _service),
+                _FavoritesTab(service: _service),
+              ],
+            ),
+          ),
         ],
       ),
     );

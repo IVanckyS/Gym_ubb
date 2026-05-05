@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/gym_icon.dart';
 import '../providers/default_routine_provider.dart';
 
 class MainShell extends StatefulWidget {
@@ -19,7 +21,7 @@ class _MainShellState extends State<MainShell> {
 
   int _indexFromLocation(String location) {
     if (location.startsWith('/routines')) return 1;
-    if (location.startsWith('/workout')) return 2;
+    if (location.startsWith('/workout') || location.startsWith('/hiit')) return 2;
     if (location.startsWith('/history')) return 3;
     if (location.startsWith('/profile') || location.startsWith('/admin')) return 4;
     return 0; // home, exercises, rankings, education, events
@@ -32,17 +34,110 @@ class _MainShellState extends State<MainShell> {
       case 1:
         context.go('/routines');
       case 2:
-        final defaultId = context.read<DefaultRoutineProvider>().routineId;
-        if (defaultId != null) {
-          context.go('/routines/$defaultId');
-        } else {
-          context.go('/routines');
-        }
+        _showTrainSheet(context);
       case 3:
         context.go('/history');
       case 4:
         context.go('/profile');
     }
+  }
+
+  void _showTrainSheet(BuildContext context) {
+    final defaultId = context.read<DefaultRoutineProvider>().routineId;
+    final isDark = context.isDarkMode;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: context.colorBgSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.textMuted,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '¿Qué quieres hacer?',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: isDark
+                              ? AppColors.textPrimary
+                              : AppColors.textPrimaryLight,
+                        ),
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentPrimary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.fitness_center,
+                      color: AppColors.accentPrimary),
+                ),
+                title: const Text('Rutinas de Fuerza'),
+                subtitle: Text(
+                  'Sigue tu plan semanal',
+                  style: TextStyle(
+                      color: context.colorTextSecondary, fontSize: 12),
+                ),
+                trailing: Icon(Icons.chevron_right,
+                    color: context.colorTextMuted),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  if (defaultId != null) {
+                    context.go('/routines/$defaultId');
+                  } else {
+                    context.go('/routines');
+                  }
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSecondary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.timer_rounded,
+                      color: AppColors.accentSecondary),
+                ),
+                title: const Text('HIIT Timer'),
+                subtitle: Text(
+                  'Tabata, EMOM, AMRAP y más',
+                  style: TextStyle(
+                      color: context.colorTextSecondary, fontSize: 12),
+                ),
+                trailing: Icon(Icons.chevron_right,
+                    color: context.colorTextMuted),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  context.go('/hiit');
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<bool> _handlePop(BuildContext context, int selectedIndex) async {
@@ -81,6 +176,8 @@ class _MainShellState extends State<MainShell> {
     final borderColor = context.colorBorder;
     final unselectedColor =
         isDark ? AppColors.textSecondary : AppColors.textMutedLight;
+    final activeColor =
+        isDark ? const Color(0xFF4D9FFF) : const Color(0xFF014898);
 
     return PopScope(
       canPop: false,
@@ -107,29 +204,28 @@ class _MainShellState extends State<MainShell> {
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: [
               NavigationDestination(
-                icon: Icon(Icons.home_outlined, color: unselectedColor, size: 22),
-                selectedIcon: const Icon(Icons.home_rounded, color: AppColors.accentPrimary, size: 22),
+                icon: GymIcon('home', size: 22, color: unselectedColor),
+                selectedIcon: GymIcon('home', size: 22, color: activeColor),
                 label: 'Inicio',
               ),
               NavigationDestination(
-                icon: Icon(Icons.list_alt_outlined, color: unselectedColor, size: 22),
-                selectedIcon: const Icon(Icons.list_alt_rounded, color: AppColors.accentPrimary, size: 22),
+                icon: GymIcon('routines', size: 22, color: unselectedColor),
+                selectedIcon: _RoutinesSelectedIcon(isDark: isDark),
                 label: 'Rutinas',
               ),
-              // Botón central: Entrenar (destacado)
               NavigationDestination(
                 icon: _TrainIcon(selected: false, isDark: isDark),
                 selectedIcon: _TrainIcon(selected: true, isDark: isDark),
                 label: 'Entrenar',
               ),
               NavigationDestination(
-                icon: Icon(Icons.bar_chart_outlined, color: unselectedColor, size: 22),
-                selectedIcon: const Icon(Icons.bar_chart_rounded, color: AppColors.accentPrimary, size: 22),
+                icon: GymIcon('history', size: 22, color: unselectedColor),
+                selectedIcon: GymIcon('history', size: 22, color: activeColor),
                 label: 'Historial',
               ),
               NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded, color: unselectedColor, size: 22),
-                selectedIcon: const Icon(Icons.person_rounded, color: AppColors.accentPrimary, size: 22),
+                icon: GymIcon('profile', size: 22, color: unselectedColor),
+                selectedIcon: GymIcon('profile', size: 22, color: activeColor),
                 label: 'Perfil',
               ),
             ],
@@ -140,7 +236,7 @@ class _MainShellState extends State<MainShell> {
   }
 }
 
-// ── Ícono central "Entrenar" con fondo de acento ──────────────────────────────
+// ── Ícono central "Entrenar" — play button ────────────────────────────────────
 class _TrainIcon extends StatelessWidget {
   const _TrainIcon({required this.selected, required this.isDark});
   final bool selected;
@@ -148,23 +244,33 @@ class _TrainIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 42,
-      height: 32,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF5A52E0), AppColors.accentPrimary],
-        ),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: selected
-            ? [BoxShadow(color: AppColors.accentPrimary.withValues(alpha: 0.45), blurRadius: 8, offset: const Offset(0, 2))]
-            : null,
-      ),
-      child: Icon(
-        selected ? Icons.play_arrow_rounded : Icons.play_arrow_outlined,
-        color: Colors.white,
-        size: 20,
-      ),
+    final Color color;
+    if (selected) {
+      color = isDark ? const Color(0xFFF9B214) : const Color(0xFF014898);
+    } else {
+      color = isDark ? AppColors.textSecondary : AppColors.textMutedLight;
+    }
+    return GymIcon('train', size: 24, color: color);
+  }
+}
+
+// ── Ícono "Rutinas" seleccionado — 3 azul + 1 amarillo ───────────────────────
+class _RoutinesSelectedIcon extends StatelessWidget {
+  const _RoutinesSelectedIcon({required this.isDark});
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final blueHex = isDark ? '#4d9fff' : '#014898';
+    return SvgPicture.string(
+      '''<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="3" width="7" height="7" rx="2" stroke="$blueHex" stroke-width="1.9"/>
+        <rect x="14" y="3" width="7" height="7" rx="2" stroke="$blueHex" stroke-width="1.9"/>
+        <rect x="3" y="14" width="7" height="7" rx="2" stroke="$blueHex" stroke-width="1.9"/>
+        <rect x="14" y="14" width="7" height="7" rx="2" stroke="#F9B214" stroke-width="1.9"/>
+      </svg>''',
+      width: 22,
+      height: 22,
     );
   }
 }

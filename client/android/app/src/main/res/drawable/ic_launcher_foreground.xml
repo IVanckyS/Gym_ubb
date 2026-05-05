@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <!-- Shield shape -->
+    <path
+        android:pathData="M50,10 L82,22 L82,50 C82,68 67,80 50,83 C33,80 18,68 18,50 L18,22 Z"
+        android:fillColor="#014898"
+        android:fillAlpha="0.35"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.2" />
+
+    <!-- Barbell bar -->
+    <path
+        android:pathData="M6,48 L94,48"
+        android:strokeColor="#F9B214"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round" />
+
+    <!-- Left disc large -->
+    <path
+        android:pathData="M8,35 L17,35 C19.2,35 21,36.8 21,39 L21,57 C21,59.2 19.2,61 17,61 L8,61 C5.8,61 4,59.2 4,57 L4,39 C4,36.8 5.8,35 8,35 Z"
+        android:fillColor="#014898"
+        android:strokeColor="#F9B214"
+        android:strokeWidth="2.2" />
+
+    <!-- Left disc small -->
+    <path
+        android:pathData="M3,41 L4,41 C5.1,41 6,41.9 6,43 L6,55 C6,56.1 5.1,57 4,57 L3,57 C1.9,57 1,56.1 1,55 L1,43 C1,41.9 1.9,41 3,41 Z"
+        android:fillColor="#F9B214"
+        android:fillAlpha="0.75" />
+
+    <!-- Right disc large -->
+    <path
+        android:pathData="M83,35 L92,35 C94.2,35 96,36.8 96,39 L96,57 C96,59.2 94.2,61 92,61 L83,61 C80.8,61 79,59.2 79,57 L79,39 C79,36.8 80.8,35 83,35 Z"
+        android:fillColor="#014898"
+        android:strokeColor="#F9B214"
+        android:strokeWidth="2.2" />
+
+    <!-- Right disc small -->
+    <path
+        android:pathData="M96,41 L97,41 C98.1,41 99,41.9 99,43 L99,55 C99,56.1 98.1,57 97,57 L96,57 C94.9,57 94,56.1 94,55 L94,43 C94,41.9 94.9,41 96,41 Z"
+        android:fillColor="#F9B214"
+        android:fillAlpha="0.75" />
+
+    <!-- Wave 1 -->
+    <path
+        android:pathData="M20,75 C29,71 35,79 44,75 C53,71 59,79 68,75 C77,71 82,77 80,77"
+        android:strokeColor="#F9B214"
+        android:strokeWidth="1.8"
+        android:strokeAlpha="0.65"
+        android:strokeLineCap="round" />
+
+    <!-- Wave 2 -->
+    <path
+        android:pathData="M20,82 C29,78 35,86 44,82 C53,78 59,86 68,82 C77,78 82,84 80,84"
+        android:strokeColor="#F9B214"
+        android:strokeWidth="1.2"
+        android:strokeAlpha="0.3"
+        android:strokeLineCap="round" />
+
+</vector>

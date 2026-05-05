@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/section_banner.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/services/exercises_service.dart';
 import '../data/body_map_data.dart';
@@ -125,59 +126,63 @@ class _ExercisesScreenState extends State<ExercisesScreen>
     final role = context.watch<AuthProvider>().user?['role'] as String? ?? '';
     final canCreate = role == 'admin' || role == 'professor';
 
+    final tabBar = TabBar(
+      controller: _tabController,
+      indicatorColor: AppColors.accentPrimary,
+      labelColor: AppColors.accentPrimary,
+      unselectedLabelColor: context.colorTextSecondary,
+      tabs: const [Tab(text: 'Mapa Corporal'), Tab(text: 'Lista')],
+    );
+
     return Scaffold(
       backgroundColor: context.colorBgPrimary,
-      appBar: AppBar(
-        title: const Text('Ejercicios'),
-        automaticallyImplyLeading: false,
-        actions: canCreate
-            ? [
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: IconButton(
-                    onPressed: () => _showCreateDialog(context),
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.accentPrimary.withValues(alpha: 0.15),
-                      foregroundColor: AppColors.accentPrimary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(
-                          color: AppColors.accentPrimary.withValues(alpha: 0.4),
+      body: NestedScrollView(
+        headerSliverBuilder: (ctx, _) => [
+          SliverToBoxAdapter(
+            child: SectionBanner(
+              title: 'Ejercicios',
+              subtitle: 'Mapa corporal · Lista completa',
+              label: 'Biblioteca',
+              accentColor: const Color(0xFFFF8C42),
+              iconName: 'dumbbell',
+              gradientColors: const [Color(0xFF160a02), Color(0xFF2c1604)],
+              trailing: canCreate
+                  ? GestureDetector(
+                      onTap: () => _showCreateDialog(context),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(40),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white.withAlpha(80)),
                         ),
+                        child: const Icon(Icons.add, color: Colors.white, size: 20),
                       ),
-                    ),
-                    icon: const Icon(Icons.add, size: 22),
-                    tooltip: 'Agregar ejercicio',
+                    )
+                  : null,
+            ),
+          ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _StickyTabBarDelegate(
+              tabBar: tabBar,
+              color: context.colorBgSecondary,
+            ),
+          ),
+        ],
+        body: _loading
+            ? const Center(child: CircularProgressIndicator(color: AppColors.accentPrimary))
+            : _error != null
+                ? _buildError()
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildBodyMapTab(),
+                      _buildListTab(),
+                    ],
                   ),
-                ),
-              ]
-            : null,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.accentPrimary,
-          labelColor: AppColors.accentPrimary,
-          unselectedLabelColor: AppColors.textSecondary,
-          tabs: const [
-            Tab(text: 'Mapa Corporal'),
-            Tab(text: 'Lista'),
-          ],
-        ),
       ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.accentPrimary,
-              ),
-            )
-          : _error != null
-              ? _buildError()
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildBodyMapTab(),
-                    _buildListTab(),
-                  ],
-                ),
     );
   }
 
@@ -223,140 +228,75 @@ class _ExercisesScreenState extends State<ExercisesScreen>
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900),
-          child: BodyMapWidget(exercises: _exercises),
+          child: const BodyMapWidget(),
         ),
       ),
     );
   }
 
   Widget _buildListTab() {
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-        // Search & filters
-        Container(
-          color: context.colorBgSecondary,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Column(
-            children: [
-              // Search field
-              TextField(
-                controller: _searchController,
-                style: TextStyle(color: context.colorTextPrimary),
-                decoration: InputDecoration(
-                  hintText: 'Buscar ejercicio...',
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: context.colorTextMuted,
+    return CustomScrollView(
+      slivers: [
+        // ── Filtros ────────────────────────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: Container(
+            color: context.colorBgSecondary,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  style: TextStyle(color: context.colorTextPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'Buscar ejercicio...',
+                    prefixIcon: Icon(Icons.search, color: context.colorTextMuted),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear, color: context.colorTextMuted),
+                            onPressed: () {
+                              _searchController.clear();
+                              _applyFilters();
+                            },
+                          )
+                        : null,
                   ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear, color: context.colorTextMuted),
-                          onPressed: () {
-                            _searchController.clear();
-                            _applyFilters();
-                          },
-                        )
-                      : null,
                 ),
-              ),
-              const SizedBox(height: 10),
-              // Muscle group filter — multi-selección
-              SizedBox(
-                height: 34,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _FilterChip(
-                      label: 'Todos',
-                      selected: _selectedGroups.isEmpty,
-                      onTap: () {
-                        setState(() => _selectedGroups = {});
-                        _applyFilters();
-                      },
-                    ),
-                    ...BodyMapData.muscleGroupDisplayName.entries.map((entry) {
-                      final color = BodyMapData.muscleColors[entry.value] ??
-                          AppColors.accentPrimary;
-                      return _FilterChip(
-                        label: entry.value,
-                        selected: _selectedGroups.contains(entry.key),
-                        activeColor: color,
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 34,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _FilterChip(
+                        label: 'Todos',
+                        selected: _selectedGroups.isEmpty,
                         onTap: () {
-                          setState(() {
-                            if (_selectedGroups.contains(entry.key)) {
-                              _selectedGroups = Set.from(_selectedGroups)
-                                ..remove(entry.key);
-                            } else {
-                              _selectedGroups = Set.from(_selectedGroups)
-                                ..add(entry.key);
-                            }
-                          });
+                          setState(() => _selectedGroups = {});
                           _applyFilters();
                         },
-                      );
-                    }),
-                  ],
+                      ),
+                      ...BodyMapData.muscleGroupDisplayName.entries.map((entry) {
+                        final color = BodyMapData.muscleColors[entry.value] ??
+                            AppColors.accentPrimary;
+                        return _FilterChip(
+                          label: entry.value,
+                          selected: _selectedGroups.contains(entry.key),
+                          activeColor: color,
+                          onTap: () {
+                            setState(() {
+                              if (_selectedGroups.contains(entry.key)) {
+                                _selectedGroups = Set.from(_selectedGroups)..remove(entry.key);
+                              } else {
+                                _selectedGroups = Set.from(_selectedGroups)..add(entry.key);
+                              }
+                            });
+                            _applyFilters();
+                          },
+                        );
+                      }),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              // Difficulty filter — selección única
-              SizedBox(
-                height: 34,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _FilterChip(
-                      label: 'Todos',
-                      selected: _selectedDifficulty.isEmpty,
-                      onTap: () {
-                        setState(() => _selectedDifficulty = '');
-                        _applyFilters();
-                      },
-                    ),
-                    _FilterChip(
-                      label: 'Principiante',
-                      selected: _selectedDifficulty == 'principiante',
-                      activeColor: const Color(0xFF4ECDC4),
-                      onTap: () {
-                        setState(() => _selectedDifficulty =
-                            _selectedDifficulty == 'principiante'
-                                ? ''
-                                : 'principiante');
-                        _applyFilters();
-                      },
-                    ),
-                    _FilterChip(
-                      label: 'Intermedio',
-                      selected: _selectedDifficulty == 'intermedio',
-                      activeColor: const Color(0xFFFFB347),
-                      onTap: () {
-                        setState(() => _selectedDifficulty =
-                            _selectedDifficulty == 'intermedio'
-                                ? ''
-                                : 'intermedio');
-                        _applyFilters();
-                      },
-                    ),
-                    _FilterChip(
-                      label: 'Avanzado',
-                      selected: _selectedDifficulty == 'avanzado',
-                      activeColor: const Color(0xFFFF6B6B),
-                      onTap: () {
-                        setState(() => _selectedDifficulty =
-                            _selectedDifficulty == 'avanzado' ? '' : 'avanzado');
-                        _applyFilters();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              // Equipment filter — solo aparece si hay valores disponibles
-              if (_availableEquipment.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 SizedBox(
                   height: 34,
@@ -364,121 +304,183 @@ class _ExercisesScreenState extends State<ExercisesScreen>
                     scrollDirection: Axis.horizontal,
                     children: [
                       _FilterChip(
-                        label: 'Todo equipo',
-                        selected: _selectedEquipment.isEmpty,
+                        label: 'Todos',
+                        selected: _selectedDifficulty.isEmpty,
                         onTap: () {
-                          setState(() => _selectedEquipment = {});
+                          setState(() => _selectedDifficulty = '');
                           _applyFilters();
                         },
                       ),
-                      ..._availableEquipment.map((eq) => _FilterChip(
-                            label: eq,
-                            selected: _selectedEquipment.contains(eq),
-                            onTap: () {
-                              setState(() {
-                                if (_selectedEquipment.contains(eq)) {
-                                  _selectedEquipment = Set.from(_selectedEquipment)
-                                    ..remove(eq);
-                                } else {
-                                  _selectedEquipment = Set.from(_selectedEquipment)
-                                    ..add(eq);
-                                }
-                              });
-                              _applyFilters();
-                            },
-                          )),
+                      _FilterChip(
+                        label: 'Principiante',
+                        selected: _selectedDifficulty == 'principiante',
+                        activeColor: const Color(0xFF4ECDC4),
+                        onTap: () {
+                          setState(() => _selectedDifficulty =
+                              _selectedDifficulty == 'principiante' ? '' : 'principiante');
+                          _applyFilters();
+                        },
+                      ),
+                      _FilterChip(
+                        label: 'Intermedio',
+                        selected: _selectedDifficulty == 'intermedio',
+                        activeColor: const Color(0xFFFFB347),
+                        onTap: () {
+                          setState(() => _selectedDifficulty =
+                              _selectedDifficulty == 'intermedio' ? '' : 'intermedio');
+                          _applyFilters();
+                        },
+                      ),
+                      _FilterChip(
+                        label: 'Avanzado',
+                        selected: _selectedDifficulty == 'avanzado',
+                        activeColor: const Color(0xFFFF6B6B),
+                        onTap: () {
+                          setState(() => _selectedDifficulty =
+                              _selectedDifficulty == 'avanzado' ? '' : 'avanzado');
+                          _applyFilters();
+                        },
+                      ),
                     ],
                   ),
                 ),
+                if (_availableEquipment.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 34,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _FilterChip(
+                          label: 'Todo equipo',
+                          selected: _selectedEquipment.isEmpty,
+                          onTap: () {
+                            setState(() => _selectedEquipment = {});
+                            _applyFilters();
+                          },
+                        ),
+                        ..._availableEquipment.map((eq) => _FilterChip(
+                              label: eq,
+                              selected: _selectedEquipment.contains(eq),
+                              onTap: () {
+                                setState(() {
+                                  if (_selectedEquipment.contains(eq)) {
+                                    _selectedEquipment = Set.from(_selectedEquipment)..remove(eq);
+                                  } else {
+                                    _selectedEquipment = Set.from(_selectedEquipment)..add(eq);
+                                  }
+                                });
+                                _applyFilters();
+                              },
+                            )),
+                      ],
+                    ),
+                  ),
+                ],
               ],
-              const SizedBox(height: 10),
-            ],
+            ),
           ),
         ),
-        // Results count + limpiar filtros
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Text(
-                '${_filtered.length} ejercicios',
-                style: Theme.of(context).textTheme.bodySmall,
+        // ── Contador de resultados ─────────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Text(
+                  '${_filtered.length} ejercicios',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (_activeFilterCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentPrimary.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$_activeFilterCount filtro${_activeFilterCount > 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        color: AppColors.accentPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: _clearFilters,
+                    child: const Text(
+                      'Limpiar',
+                      style: TextStyle(
+                        color: AppColors.accentSecondary,
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        // ── Grid de ejercicios ─────────────────────────────────────────────────
+        if (_filtered.isEmpty)
+          SliverFillRemaining(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.fitness_center, size: 48, color: AppColors.textMuted),
+                  const SizedBox(height: 12),
+                  Text('Sin resultados', style: Theme.of(context).textTheme.bodyMedium),
+                ],
               ),
-              if (_activeFilterCount > 0) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.accentPrimary.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '$_activeFilterCount filtro${_activeFilterCount > 1 ? 's' : ''}',
-                    style: const TextStyle(
-                      color: AppColors.accentPrimary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            sliver: SliverGrid(
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => ExerciseCard(
+                  exercise: _filtered[i],
+                  onTap: () => context.push('/exercises/${_filtered[i]['id']}'),
                 ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: _clearFilters,
-                  child: const Text(
-                    'Limpiar',
-                    style: TextStyle(
-                      color: AppColors.accentSecondary,
-                      fontSize: 12,
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+                childCount: _filtered.length,
+              ),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.66,
+              ),
+            ),
           ),
-        ),
-        // List
-        Expanded(
-          child: _filtered.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.fitness_center,
-                        size: 48,
-                        color: AppColors.textMuted,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Sin resultados',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount:
-                        MediaQuery.of(context).size.width > 600 ? 3 : 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.66,
-                  ),
-                  itemCount: _filtered.length,
-                  itemBuilder: (context, i) => ExerciseCard(
-                    exercise: _filtered[i],
-                    onTap: () =>
-                        context.push('/exercises/${_filtered[i]['id']}'),
-                  ),
-                ),
-        ),
-          ],
-        ),
-      ),
+      ],
     );
   }
+}
+
+class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
+  const _StickyTabBarDelegate({required this.tabBar, required this.color});
+  final TabBar tabBar;
+  final Color color;
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(color: color, child: tabBar);
+  }
+
+  @override
+  bool shouldRebuild(_StickyTabBarDelegate old) =>
+      old.tabBar != tabBar || old.color != color;
 }
 
 class _FilterChip extends StatelessWidget {
@@ -552,6 +554,7 @@ class _CreateExerciseDialogState extends State<_CreateExerciseDialog> {
   String _defaultReps = '8-12';
   int _defaultDurationSeconds = 30;
   bool _isIsometric = false;
+  bool _isCalistenia = false;
   bool _isRankeable = false;
   bool _saving = false;
   String? _saveStep;
@@ -632,7 +635,9 @@ class _CreateExerciseDialogState extends State<_CreateExerciseDialog> {
         'instructions': instructions,
         'variations': variations,
         'isRankeable': _isRankeable,
-        'exerciseType': _isIsometric ? 'isometrico' : 'dinamico',
+        'exerciseType': _isIsometric
+            ? 'isometrico'
+            : (_isCalistenia ? 'calistenia' : 'dinamico'),
         if (_isIsometric) 'defaultDurationSeconds': _defaultDurationSeconds,
       });
 
@@ -706,6 +711,8 @@ class _CreateExerciseDialogState extends State<_CreateExerciseDialog> {
                       _buildVariationsList(),
                       const SizedBox(height: 16),
                       _buildIsometricToggle(),
+                      const SizedBox(height: 12),
+                      _buildCalisteniaToggle(),
                       const SizedBox(height: 12),
                       _buildRankeableToggle(),
                       if (_error != null) ...[
@@ -1275,7 +1282,10 @@ class _CreateExerciseDialogState extends State<_CreateExerciseDialog> {
       ),
       child: SwitchListTile(
         value: _isIsometric,
-        onChanged: (v) => setState(() => _isIsometric = v),
+        onChanged: (v) => setState(() {
+          _isIsometric = v;
+          if (v) _isCalistenia = false;
+        }),
         activeThumbColor: const Color(0xFF818cf8),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         title: Row(
@@ -1291,6 +1301,47 @@ class _CreateExerciseDialogState extends State<_CreateExerciseDialog> {
         ),
         subtitle: Text(
           'Se mide por tiempo (segundos), no por kg y repeticiones',
+          style: TextStyle(color: context.colorTextMuted, fontSize: 11),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCalisteniaToggle() {
+    const color = Color(0xFF4ECDC4);
+    return Container(
+      decoration: BoxDecoration(
+        color: _isCalistenia
+            ? color.withValues(alpha: 0.08)
+            : context.colorBgSecondary,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: _isCalistenia
+              ? color.withValues(alpha: 0.3)
+              : context.colorBorder,
+        ),
+      ),
+      child: SwitchListTile(
+        value: _isCalistenia,
+        onChanged: (v) => setState(() {
+          _isCalistenia = v;
+          if (v) _isIsometric = false;
+        }),
+        activeThumbColor: color,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        title: Row(
+          children: [
+            const Icon(Icons.accessibility_new_rounded, size: 16, color: color),
+            const SizedBox(width: 8),
+            Text('Ejercicio de peso corporal',
+                style: TextStyle(
+                    color: context.colorTextPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500)),
+          ],
+        ),
+        subtitle: Text(
+          'Calistenia: el volumen incluye el peso corporal + lastre opcional',
           style: TextStyle(color: context.colorTextMuted, fontSize: 11),
         ),
       ),

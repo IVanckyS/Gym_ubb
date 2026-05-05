@@ -1,6 +1,10 @@
-# Claude Code (memoria local, no subir)
+# Claude Code y artefactos de trabajo interno
 .claude/
 CLAUDE.md
+docs/
+dockerfiles/
+prompt_*.md
+*.html
 
 # Secretos — NUNCA subir a git
 .env

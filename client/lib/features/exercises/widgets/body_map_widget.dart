@@ -1,80 +1,126 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/providers/auth_provider.dart';
+import '../../../shared/services/exercises_service.dart';
 import '../../../shared/services/joint_exercises_service.dart';
 import '../data/body_map_data.dart';
 import 'exercise_card.dart';
 
 class BodyMapWidget extends StatefulWidget {
-  final List<Map<String, dynamic>> exercises;
-
-  const BodyMapWidget({required this.exercises, super.key});
+  const BodyMapWidget({super.key});
 
   @override
   State<BodyMapWidget> createState() => _BodyMapWidgetState();
 }
 
 class _BodyMapWidgetState extends State<BodyMapWidget> {
-  String _gender = 'male';
-  String _view = 'front';
-  String _mode = 'muscles'; // 'muscles' | 'joints'
-  String? _selectedGroup;
-  String? _hoveredGroup;
-  String? _selectedJointFamily;
+  Gender _gender = Gender.male;
+  BodyView _view = BodyView.front;
+  BodyMapMode _mode = BodyMapMode.muscle;
+
+  MuscleSubgroup? _selectedMuscle;
+  MuscleGroup? _selectedMuscleGroup;
+  String? _hoveredId; // hitboxId — solo en web
+
+  JointFamily? _selectedJoint;
+
   final JointExercisesService _jointService = JointExercisesService();
 
-  List<MuscleZone> get _currentZones =>
-      _view == 'front' ? BodyMapData.zonesFront : BodyMapData.zonesBack;
+  String get _svgPath {
+    if (_gender == Gender.male) {
+      return _view == BodyView.front
+          ? 'assets/body-map/FRONT_MELE.svg'
+          : 'assets/body-map/BACK_MELE.svg';
+    } else {
+      return _view == BodyView.front
+          ? 'assets/body-map/FRONT_WOMAN.svg'
+          : 'assets/body-map/BACK_WOMAN.svg';
+    }
+  }
+
+  List<MuscleRegion> get _currentRegions =>
+      kMuscleRegions.where((r) => r.view == _view).toList();
 
   List<JointPoint> get _currentJoints =>
-      _view == 'front' ? BodyMapData.jointsFront : BodyMapData.jointsBack;
+      kJointPoints.where((p) => p.view == _view).toList();
 
-  void _handleMuscleTap(Offset localPos, Size widgetSize) {
-    final scaleX = widgetSize.width / 658;
-    final scaleY = widgetSize.height / 1024;
+  // ── Hit testing ────────────────────────────────────────────────────────────
 
-    for (final zone in _currentZones) {
-      final pts = _parsePoints(zone.points, scaleX, scaleY);
-      final path = Path()..addPolygon(pts, true);
-      if (path.contains(localPos)) {
-        setState(() => _selectedGroup = zone.muscleGroup);
-        _showMuscleBottomSheet(zone.muscleGroup);
+  /// Hit-test sobre forma normalizada. La elipse soporta rotación (campo `rot`
+  /// en grados): se traslada el punto al sistema local de la elipse, se rota
+  /// por -rot, y se aplica la fórmula estándar (lx²/rx²) + (ly²/ry²) ≤ 1.
+  bool _hitTest(HitboxShape shape, Offset pos, Size size) {
+    if (shape is EllipseShape) {
+      final px = pos.dx / size.width;
+      final py = pos.dy / size.height;
+      final dx = px - shape.cx;
+      final dy = py - shape.cy;
+      final rad = -shape.rot * math.pi / 180;
+      final lx = dx * math.cos(rad) - dy * math.sin(rad);
+      final ly = dx * math.sin(rad) + dy * math.cos(rad);
+      return (lx * lx) / (shape.rx * shape.rx) +
+              (ly * ly) / (shape.ry * shape.ry) <=
+          1.0;
+    }
+    if (shape is PolygonShape) {
+      return _pointInPolygon(pos, shape.points, size);
+    }
+    return false;
+  }
+
+  bool _pointInPolygon(Offset point, List<Point> points, Size size) {
+    final n = points.length;
+    bool inside = false;
+    var j = n - 1;
+    for (var i = 0; i < n; i++) {
+      final xi = points[i].x * size.width;
+      final yi = points[i].y * size.height;
+      final xj = points[j].x * size.width;
+      final yj = points[j].y * size.height;
+      if ((yi > point.dy) != (yj > point.dy) &&
+          point.dx < (xj - xi) * (point.dy - yi) / (yj - yi) + xi) {
+        inside = !inside;
+      }
+      j = i;
+    }
+    return inside;
+  }
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
+  void _handleMuscleTap(TapDownDetails d, Size size) {
+    for (final region in _currentRegions) {
+      if (_hitTest(region.shape, d.localPosition, size)) {
+        setState(() {
+          _selectedMuscle = region.subgroup;
+          _selectedMuscleGroup = region.group;
+        });
+        _showMuscleBottomSheet(region.group, region.subgroup);
         return;
       }
     }
-    setState(() => _selectedGroup = null);
+    setState(() {
+      _selectedMuscle = null;
+      _selectedMuscleGroup = null;
+    });
   }
 
-  String? _groupAtPosition(Offset localPos, Size widgetSize) {
-    final scaleX = widgetSize.width / 658;
-    final scaleY = widgetSize.height / 1024;
-    for (final zone in _currentZones) {
-      final pts = _parsePoints(zone.points, scaleX, scaleY);
-      final path = Path()..addPolygon(pts, true);
-      if (path.contains(localPos)) return zone.muscleGroup;
+  void _handleHover(PointerEvent e, Size size) {
+    String? hit;
+    for (final region in _currentRegions) {
+      if (_hitTest(region.shape, e.localPosition, size)) {
+        hit = region.hitboxId;
+        break;
+      }
     }
-    return null;
+    if (hit != _hoveredId) setState(() => _hoveredId = hit);
   }
 
-  List<Offset> _parsePoints(String points, double scaleX, double scaleY) {
-    return points.split(' ').map((p) {
-      final parts = p.split(',');
-      return Offset(
-        double.parse(parts[0]) * scaleX,
-        double.parse(parts[1]) * scaleY,
-      );
-    }).toList();
-  }
-
-  void _showMuscleBottomSheet(String muscleGroup) {
-    final groupExercises = widget.exercises.where((e) {
-      final mg = BodyMapData.muscleGroupDisplayName[e['muscleGroup'] as String? ?? ''];
-      return mg == muscleGroup;
-    }).toList();
-
+  void _showMuscleBottomSheet(MuscleGroup group, [MuscleSubgroup? subgroup]) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgSecondary,
@@ -82,18 +128,12 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       isScrollControlled: true,
-      builder: (ctx) => _MuscleBottomSheet(
-        muscleGroup: muscleGroup,
-        exercises: groupExercises,
-      ),
+      builder: (ctx) => _MuscleBottomSheet(group: group, subgroup: subgroup),
     );
   }
 
-  void _showJointBottomSheet(String family) {
-    final familyName = BodyMapData.jointFamilyNames[family] ?? family;
+  void _showJointBottomSheet(JointFamily family) {
     final role = context.read<AuthProvider>().user?['role'] as String? ?? '';
-    final canCreate = role == 'admin' || role == 'professor';
-
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgSecondary,
@@ -102,13 +142,15 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
       ),
       isScrollControlled: true,
       builder: (ctx) => _JointBottomSheet(
-        family: family,
-        familyName: familyName,
+        family: family.name,
+        familyName: family.displayName,
         service: _jointService,
-        canCreate: canCreate,
+        canCreate: role == 'admin' || role == 'professor',
       ),
     );
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -123,50 +165,38 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
               aspectRatio: 658 / 1024,
               child: LayoutBuilder(
                 builder: (context, constraints) {
+                  final size = constraints.biggest;
                   return Stack(
                     children: [
-                      // Background body image
                       SvgPicture.asset(
-                        _gender == 'male'
-                            ? (_view == 'front'
-                                ? 'assets/body-map/FRONT_MELE.svg'
-                                : 'assets/body-map/BACK_MELE.svg')
-                            : (_view == 'front'
-                                ? 'assets/body-map/FRONT_WOMAN.svg'
-                                : 'assets/body-map/BACK_WOMAN.svg'),
-                        width: constraints.maxWidth,
-                        height: constraints.maxHeight,
+                        _svgPath,
+                        width: size.width,
+                        height: size.height,
                         fit: BoxFit.fill,
                       ),
-                      // Interactive overlay
-                      if (_mode == 'muscles')
+                      if (_mode == BodyMapMode.muscle)
                         MouseRegion(
-                          onHover: (e) {
-                            final g = _groupAtPosition(e.localPosition, constraints.biggest);
-                            if (g != _hoveredGroup) setState(() => _hoveredGroup = g);
-                          },
+                          onHover: (e) => _handleHover(e, size),
                           onExit: (_) {
-                            if (_hoveredGroup != null) setState(() => _hoveredGroup = null);
+                            if (_hoveredId != null) {
+                              setState(() => _hoveredId = null);
+                            }
                           },
                           child: GestureDetector(
                             behavior: HitTestBehavior.translucent,
-                            onTapDown: (d) => _handleMuscleTap(
-                              d.localPosition,
-                              constraints.biggest,
-                            ),
+                            onTapDown: (d) => _handleMuscleTap(d, size),
                             child: CustomPaint(
-                              size: constraints.biggest,
+                              size: size,
                               painter: _MusclePainter(
-                                zones: _currentZones,
-                                selectedGroup: _selectedGroup,
-                                hoveredGroup: _hoveredGroup,
-                                viewBox: const Size(658, 1024),
+                                regions: _currentRegions,
+                                selectedMuscle: _selectedMuscle,
+                                hoveredId: _hoveredId,
                               ),
                             ),
                           ),
                         )
                       else
-                        _buildJointsOverlay(constraints.biggest),
+                        _buildJointsOverlay(size),
                     ],
                   );
                 },
@@ -175,8 +205,8 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
           ),
         ),
         const SizedBox(height: 16),
-        if (_mode == 'muscles') _buildMuscleLegend(),
-        if (_mode == 'joints') _buildJointLegend(),
+        if (_mode == BodyMapMode.muscle) _buildMuscleLegend(),
+        if (_mode == BodyMapMode.joint) _buildJointLegend(),
       ],
     );
   }
@@ -189,29 +219,34 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
       children: [
         _ToggleGroup(
           options: const [('male', '♂ Masculino'), ('female', '♀ Femenino')],
-          value: _gender,
+          value: _gender == Gender.male ? 'male' : 'female',
           onChanged: (v) => setState(() {
-            _gender = v;
-            _selectedGroup = null;
-            _selectedJointFamily = null;
+            _gender = v == 'male' ? Gender.male : Gender.female;
+            _selectedMuscle = null;
+            _selectedMuscleGroup = null;
+            _selectedJoint = null;
           }),
         ),
         _ToggleGroup(
           options: const [('front', 'Frontal'), ('back', 'Posterior')],
-          value: _view,
+          value: _view == BodyView.front ? 'front' : 'back',
           onChanged: (v) => setState(() {
-            _view = v;
-            _selectedGroup = null;
-            _selectedJointFamily = null;
+            _view = v == 'front' ? BodyView.front : BodyView.back;
+            _selectedMuscle = null;
+            _selectedMuscleGroup = null;
+            _selectedJoint = null;
+            _hoveredId = null;
           }),
         ),
         _ToggleGroup(
-          options: const [('muscles', '💪 Músculos'), ('joints', '🔴 Articulaciones')],
-          value: _mode,
+          options: const [('muscle', '💪 Músculos'), ('joint', '🔴 Articulaciones')],
+          value: _mode == BodyMapMode.muscle ? 'muscle' : 'joint',
           onChanged: (v) => setState(() {
-            _mode = v;
-            _selectedGroup = null;
-            _selectedJointFamily = null;
+            _mode = v == 'muscle' ? BodyMapMode.muscle : BodyMapMode.joint;
+            _selectedMuscle = null;
+            _selectedMuscleGroup = null;
+            _selectedJoint = null;
+            _hoveredId = null;
           }),
         ),
       ],
@@ -219,93 +254,107 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
   }
 
   Widget _buildJointsOverlay(Size size) {
-    final scaleX = size.width / 658;
-    final scaleY = size.height / 1024;
+    return Stack(
+      children: _currentJoints.map((point) {
+        final px = point.cx * size.width;
+        final py = point.cy * size.height;
+        final isSelected = _selectedJoint == point.family;
+        const hitR = 28.0;
+        const visR = 8.0;
+        const visRSel = 10.0;
 
-    final renderedFamilies = <String>{};
-    final widgets = <Widget>[];
-
-    for (final joint in _currentJoints) {
-      final isSelected = _selectedJointFamily == joint.family;
-      final alreadyRendered = renderedFamilies.contains(joint.family);
-
-      final color = isSelected
-          ? AppColors.accentSecondary
-          : alreadyRendered
-              ? AppColors.accentPrimary.withValues(alpha: 0.6)
-              : AppColors.accentPrimary;
-
-      final px = joint.x * scaleX;
-      final py = joint.y * scaleY;
-      const radius = 7.0;
-
-      widgets.add(
-        Positioned(
-          left: px - radius,
-          top: py - radius,
+        return Positioned(
+          left: px - hitR,
+          top: py - hitR,
           child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () {
-              setState(() => _selectedJointFamily = joint.family);
-              _showJointBottomSheet(joint.family);
+              setState(() => _selectedJoint = point.family);
+              _showJointBottomSheet(point.family);
             },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: radius * 2,
-              height: radius * 2,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  width: 1.5,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: AppColors.accentSecondary.withValues(alpha: 0.5),
-                          blurRadius: 6,
-                          spreadRadius: 2,
+            child: SizedBox(
+              width: hitR * 2,
+              height: hitR * 2,
+              child: Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (isSelected)
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppColors.accentSecondary.withValues(alpha: 0.25),
+                          shape: BoxShape.circle,
                         ),
-                      ]
-                    : null,
+                      ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: isSelected ? visRSel * 2 : visR * 2,
+                      height: isSelected ? visRSel * 2 : visR * 2,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.accentSecondary.withValues(alpha: 0.95)
+                            : AppColors.accentPrimary.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: isSelected ? 1.0 : 0.9),
+                          width: 1.5,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.accentSecondary.withValues(alpha: 0.5),
+                                  blurRadius: 6,
+                                  spreadRadius: 2,
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
-
-      renderedFamilies.add(joint.family);
-    }
-
-    return Stack(children: widgets);
+        );
+      }).toList(),
+    );
   }
 
   Widget _buildMuscleLegend() {
-    final groups = BodyMapData.muscleColors.entries.toList();
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 8,
       runSpacing: 6,
-      children: groups.map((entry) {
-        final isSelected = _selectedGroup == entry.key;
+      children: MuscleGroup.values.map((group) {
+        final isSelected = _selectedMuscleGroup == group;
+        final color = group.color;
         return GestureDetector(
           onTap: () {
-            setState(() =>
-                _selectedGroup = isSelected ? null : entry.key);
-            if (!isSelected) _showMuscleBottomSheet(entry.key);
+            if (isSelected) {
+              setState(() {
+                _selectedMuscleGroup = null;
+                _selectedMuscle = null;
+              });
+            } else {
+              setState(() {
+                _selectedMuscleGroup = group;
+                _selectedMuscle = null;
+              });
+              _showMuscleBottomSheet(group);
+            }
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: isSelected
-                  ? entry.value.withValues(alpha: 0.25)
-                  : entry.value.withValues(alpha: 0.1),
+                  ? color.withValues(alpha: 0.25)
+                  : color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isSelected
-                    ? entry.value
-                    : entry.value.withValues(alpha: 0.4),
+                color: isSelected ? color : color.withValues(alpha: 0.4),
                 width: isSelected ? 1.5 : 1,
               ),
             ),
@@ -315,16 +364,13 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: BoxDecoration(
-                    color: entry.value,
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  entry.key,
+                  group.displayName,
                   style: TextStyle(
-                    color: isSelected ? entry.value : AppColors.textSecondary,
+                    color: isSelected ? color : AppColors.textSecondary,
                     fontSize: 12,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
@@ -342,13 +388,16 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
       alignment: WrapAlignment.center,
       spacing: 8,
       runSpacing: 6,
-      children: BodyMapData.jointFamilyNames.entries.map((entry) {
-        final isSelected = _selectedJointFamily == entry.key;
+      children: JointFamily.values.map((family) {
+        final isSelected = _selectedJoint == family;
         return GestureDetector(
           onTap: () {
-            setState(() => _selectedJointFamily =
-                isSelected ? null : entry.key);
-            if (!isSelected) _showJointBottomSheet(entry.key);
+            if (isSelected) {
+              setState(() => _selectedJoint = null);
+            } else {
+              setState(() => _selectedJoint = family);
+              _showJointBottomSheet(family);
+            }
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -356,7 +405,7 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
             decoration: BoxDecoration(
               color: isSelected
                   ? AppColors.accentPrimary.withValues(alpha: 0.2)
-                  : AppColors.bgTertiary,
+                  : context.colorBgTertiary,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: isSelected ? AppColors.accentPrimary : AppColors.border,
@@ -376,7 +425,7 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  entry.value,
+                  family.displayName,
                   style: TextStyle(
                     color: isSelected
                         ? AppColors.accentPrimary
@@ -394,71 +443,81 @@ class _BodyMapWidgetState extends State<BodyMapWidget> {
   }
 }
 
-// ── CustomPainter for muscle zones ───────────────────────────────────────────
+// ── CustomPainter ─────────────────────────────────────────────────────────────
 
 class _MusclePainter extends CustomPainter {
-  final List<MuscleZone> zones;
-  final String? selectedGroup;
-  final String? hoveredGroup;
-  final Size viewBox;
+  final List<MuscleRegion> regions;
+  final MuscleSubgroup? selectedMuscle;
+  final String? hoveredId;
 
   const _MusclePainter({
-    required this.zones,
-    required this.selectedGroup,
-    required this.hoveredGroup,
-    required this.viewBox,
+    required this.regions,
+    required this.selectedMuscle,
+    required this.hoveredId,
   });
-
-  List<Offset> _parsePoints(String points, double scaleX, double scaleY) {
-    return points.split(' ').map((p) {
-      final parts = p.split(',');
-      return Offset(
-        double.parse(parts[0]) * scaleX,
-        double.parse(parts[1]) * scaleY,
-      );
-    }).toList();
-  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scaleX = size.width / viewBox.width;
-    final scaleY = size.height / viewBox.height;
+    for (final region in regions) {
+      final isSelected = selectedMuscle == region.subgroup;
+      final isHovered = hoveredId == region.hitboxId;
+      if (!isSelected && !isHovered) continue;
 
-    for (final zone in zones) {
-      final color = BodyMapData.muscleColors[zone.muscleGroup] ??
-          AppColors.accentPrimary;
-      final isSelected = selectedGroup == zone.muscleGroup;
-      final isHovered = hoveredGroup == zone.muscleGroup;
-      final isActive = isSelected || isHovered;
-
-      if (!isActive) continue; // transparent when idle
-
-      final pts = _parsePoints(zone.points, scaleX, scaleY);
-      final path = Path()..addPolygon(pts, true);
-
-      // Fill
+      final color = region.group.color;
       final fillPaint = Paint()
-        ..color = color.withValues(alpha: isSelected ? 0.55 : 0.30)
+        ..color = color.withValues(alpha: isSelected ? 0.55 : 0.35)
         ..style = PaintingStyle.fill;
-      canvas.drawPath(path, fillPaint);
-
-      // Stroke
       final strokePaint = Paint()
-        ..color = color.withValues(alpha: isSelected ? 0.9 : 0.7)
+        ..color = color.withValues(alpha: isSelected ? 1.0 : 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = isSelected ? 1.5 : 1.0;
-      canvas.drawPath(path, strokePaint);
+
+      _drawShape(canvas, region.shape, size, fillPaint, strokePaint);
+    }
+  }
+
+  void _drawShape(
+      Canvas canvas, HitboxShape shape, Size size, Paint fill, Paint stroke) {
+    if (shape is EllipseShape) {
+      final cx = shape.cx * size.width;
+      final cy = shape.cy * size.height;
+      final rx = shape.rx * size.width;
+      final ry = shape.ry * size.height;
+      final rect = Rect.fromCenter(
+          center: Offset(cx, cy), width: rx * 2, height: ry * 2);
+      if (shape.rot == 0) {
+        canvas.drawOval(rect, fill);
+        canvas.drawOval(rect, stroke);
+      } else {
+        canvas.save();
+        canvas.translate(cx, cy);
+        canvas.rotate(shape.rot * math.pi / 180);
+        canvas.translate(-cx, -cy);
+        canvas.drawOval(rect, fill);
+        canvas.drawOval(rect, stroke);
+        canvas.restore();
+      }
+      return;
+    }
+    if (shape is PolygonShape) {
+      if (shape.points.isEmpty) return;
+      final pts = shape.points
+          .map((p) => Offset(p.x * size.width, p.y * size.height))
+          .toList();
+      final path = Path()..addPolygon(pts, true);
+      canvas.drawPath(path, fill);
+      canvas.drawPath(path, stroke);
     }
   }
 
   @override
   bool shouldRepaint(_MusclePainter old) =>
-      old.selectedGroup != selectedGroup ||
-      old.hoveredGroup != hoveredGroup ||
-      old.zones != zones;
+      old.selectedMuscle != selectedMuscle ||
+      old.hoveredId != hoveredId ||
+      old.regions != regions;
 }
 
-// ── Toggle group helper widget ────────────────────────────────────────────────
+// ── Toggle group ──────────────────────────────────────────────────────────────
 
 class _ToggleGroup extends StatelessWidget {
   final List<(String, String)> options;
@@ -498,8 +557,7 @@ class _ToggleGroup extends StatelessWidget {
                 style: TextStyle(
                   color: isActive ? Colors.white : AppColors.textSecondary,
                   fontSize: 12,
-                  fontWeight:
-                      isActive ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ),
@@ -510,34 +568,49 @@ class _ToggleGroup extends StatelessWidget {
   }
 }
 
-// ── Bottom sheet: muscle exercises ───────────────────────────────────────────
+// ── Bottom sheet: músculos (llama API) ────────────────────────────────────────
 
 class _MuscleBottomSheet extends StatefulWidget {
-  final String muscleGroup;
-  final List<Map<String, dynamic>> exercises;
+  final MuscleGroup group;
+  final MuscleSubgroup? subgroup;
 
-  const _MuscleBottomSheet({
-    required this.muscleGroup,
-    required this.exercises,
-  });
+  const _MuscleBottomSheet({required this.group, this.subgroup});
 
   @override
   State<_MuscleBottomSheet> createState() => _MuscleBottomSheetState();
 }
 
 class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
+  final _service = ExercisesService();
+  List<Map<String, dynamic>> _exercises = [];
+  bool _loading = true;
   String _diffFilter = 'Todos';
 
   @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final list = await _service.listExercises(
+        muscleGroups: {widget.group.name},
+      );
+      if (mounted) setState(() { _exercises = list; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final color = BodyMapData.muscleColors[widget.muscleGroup] ??
-        AppColors.accentPrimary;
-    final emoji =
-        BodyMapData.muscleEmoji[widget.muscleGroup] ?? '💪';
+    final color = widget.group.color;
+    final emoji = BodyMapData.muscleEmoji[widget.group.displayName] ?? '💪';
 
     final filtered = _diffFilter == 'Todos'
-        ? widget.exercises
-        : widget.exercises
+        ? _exercises
+        : _exercises
             .where((e) => e['difficulty'] == _diffFilter.toLowerCase())
             .toList();
 
@@ -555,7 +628,6 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
           ),
           child: Column(
             children: [
-              // Handle
               const SizedBox(height: 10),
               Container(
                 width: 40,
@@ -566,10 +638,10 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              // Header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(emoji, style: const TextStyle(fontSize: 28)),
                     const SizedBox(width: 12),
@@ -577,24 +649,32 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.muscleGroup,
+                          widget.group.displayName,
                           style: TextStyle(
                             color: color,
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        Text(
-                          '${widget.exercises.length} ejercicios',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                        if (widget.subgroup != null)
+                          Text(
+                            widget.subgroup!.displayName,
+                            style: TextStyle(
+                              color: color.withValues(alpha: 0.7),
+                              fontSize: 13,
+                            ),
+                          ),
+                        if (!_loading)
+                          Text(
+                            '${_exercises.length} ejercicios',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                       ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
-              // Difficulty filter
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -609,26 +689,20 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
-                          ),
+                              horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
                             color: isActive
                                 ? color.withValues(alpha: 0.2)
                                 : AppColors.bgTertiary,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: isActive
-                                  ? color
-                                  : AppColors.border,
+                              color: isActive ? color : AppColors.border,
                             ),
                           ),
                           child: Text(
                             d,
                             style: TextStyle(
-                              color: isActive
-                                  ? color
-                                  : AppColors.textSecondary,
+                              color: isActive ? color : AppColors.textSecondary,
                               fontSize: 13,
                               fontWeight: isActive
                                   ? FontWeight.w600
@@ -643,29 +717,34 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
               ),
               const SizedBox(height: 12),
               const Divider(height: 1, color: AppColors.border),
-              // Exercise list
               Expanded(
-                child: filtered.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No hay ejercicios para este filtro',
-                          style: TextStyle(color: context.colorTextMuted),
-                        ),
-                      )
-                    : ListView.separated(
-                        controller: scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: filtered.length,
-                        separatorBuilder: (context2, i2) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => ExerciseCard(
-                          exercise: filtered[i],
-                          compact: true,
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            context.push('/exercises/${filtered[i]['id']}');
-                          },
-                        ),
-                      ),
+                child: _loading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                            color: AppColors.accentPrimary))
+                    : filtered.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No hay ejercicios para este filtro',
+                              style: TextStyle(color: context.colorTextMuted),
+                            ),
+                          )
+                        : ListView.separated(
+                            controller: scrollController,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (_, i) => ExerciseCard(
+                              exercise: filtered[i],
+                              compact: true,
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                context
+                                    .push('/exercises/${filtered[i]['id']}');
+                              },
+                            ),
+                          ),
               ),
             ],
           ),
@@ -675,7 +754,7 @@ class _MuscleBottomSheetState extends State<_MuscleBottomSheet> {
   }
 }
 
-// ── Bottom sheet: joint exercises ─────────────────────────────────────────────
+// ── Bottom sheet: articulaciones ──────────────────────────────────────────────
 
 class _JointBottomSheet extends StatefulWidget {
   final String family;
@@ -748,7 +827,8 @@ class _JointBottomSheetState extends State<_JointBottomSheet> {
             children: [
               const SizedBox(height: 10),
               Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                   color: AppColors.textMuted,
                   borderRadius: BorderRadius.circular(2),
@@ -760,7 +840,8 @@ class _JointBottomSheetState extends State<_JointBottomSheet> {
                 child: Row(
                   children: [
                     Container(
-                      width: 12, height: 12,
+                      width: 12,
+                      height: 12,
                       decoration: const BoxDecoration(
                         color: AppColors.accentPrimary,
                         shape: BoxShape.circle,
@@ -809,8 +890,8 @@ class _JointBottomSheetState extends State<_JointBottomSheet> {
                                     color: AppColors.textMuted, size: 40),
                                 const SizedBox(height: 12),
                                 const Text('Sin ejercicios registrados',
-                                    style: TextStyle(
-                                        color: AppColors.textMuted)),
+                                    style:
+                                        TextStyle(color: AppColors.textMuted)),
                                 if (widget.canCreate) ...[
                                   const SizedBox(height: 12),
                                   TextButton.icon(
@@ -829,7 +910,7 @@ class _JointBottomSheetState extends State<_JointBottomSheet> {
                             controller: scrollController,
                             padding: const EdgeInsets.all(16),
                             itemCount: _exercises.length,
-                            separatorBuilder: (_, i) =>
+                            separatorBuilder: (_, _) =>
                                 const SizedBox(height: 12),
                             itemBuilder: (_, i) =>
                                 _JointExerciseCard(exercise: _exercises[i]),
@@ -845,7 +926,6 @@ class _JointBottomSheetState extends State<_JointBottomSheet> {
 
 class _JointExerciseCard extends StatelessWidget {
   final Map<String, dynamic> exercise;
-
   const _JointExerciseCard({required this.exercise});
 
   @override
@@ -855,9 +935,9 @@ class _JointExerciseCard extends StatelessWidget {
     final instructions = (exercise['instructions'] as List?)?.cast<String>() ?? [];
     final benefits = exercise['benefits'] as String?;
     final whenToUse = exercise['whenToUse'] as String?;
-
     final isMovilidad = type == 'movilidad';
-    final typeColor = isMovilidad ? const Color(0xFF4ECDC4) : AppColors.accentPrimary;
+    final typeColor =
+        isMovilidad ? const Color(0xFF4ECDC4) : AppColors.accentPrimary;
     final typeLabel = isMovilidad ? 'Movilidad' : 'Fortalecimiento';
 
     return Container(
@@ -879,7 +959,9 @@ class _JointExerciseCard extends StatelessWidget {
             ),
             child: Text(typeLabel,
                 style: TextStyle(
-                    color: typeColor, fontSize: 11, fontWeight: FontWeight.w600)),
+                    color: typeColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600)),
           ),
           const SizedBox(height: 8),
           Text(name, style: Theme.of(context).textTheme.titleMedium),
@@ -891,7 +973,8 @@ class _JointExerciseCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        width: 18, height: 18,
+                        width: 18,
+                        height: 18,
                         margin: const EdgeInsets.only(right: 8, top: 1),
                         decoration: BoxDecoration(
                           color: AppColors.accentPrimary.withValues(alpha: 0.15),
@@ -920,14 +1003,19 @@ class _JointExerciseCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF4ECDC4).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF4ECDC4).withValues(alpha: 0.25)),
+                border: Border.all(
+                    color: const Color(0xFF4ECDC4).withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF4ECDC4)),
+                  const Icon(Icons.check_circle_outline,
+                      size: 14, color: Color(0xFF4ECDC4)),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(benefits,
-                      style: const TextStyle(color: Color(0xFF4ECDC4), fontSize: 12))),
+                  Expanded(
+                    child: Text(benefits,
+                        style: const TextStyle(
+                            color: Color(0xFF4ECDC4), fontSize: 12)),
+                  ),
                 ],
               ),
             ),
@@ -939,14 +1027,19 @@ class _JointExerciseCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.accentPrimary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.accentPrimary.withValues(alpha: 0.25)),
+                border: Border.all(
+                    color: AppColors.accentPrimary.withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, size: 14, color: AppColors.accentPrimary),
+                  const Icon(Icons.info_outline,
+                      size: 14, color: AppColors.accentPrimary),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(whenToUse,
-                      style: const TextStyle(color: AppColors.accentPrimary, fontSize: 12))),
+                  Expanded(
+                    child: Text(whenToUse,
+                        style: const TextStyle(
+                            color: AppColors.accentPrimary, fontSize: 12)),
+                  ),
                 ],
               ),
             ),
@@ -975,7 +1068,8 @@ class _CreateJointExerciseSheet extends StatefulWidget {
       _CreateJointExerciseSheetState();
 }
 
-class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
+class _CreateJointExerciseSheetState
+    extends State<_CreateJointExerciseSheet> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _benefitsCtrl = TextEditingController();
@@ -1021,16 +1115,18 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
         hintStyle: TextStyle(color: context.colorTextMuted),
         filled: true,
         fillColor: AppColors.bgTertiary,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none),
       );
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.85,
@@ -1039,14 +1135,16 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
         builder: (ctx, scroll) => Container(
           decoration: BoxDecoration(
             color: context.colorBgSecondary,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
             children: [
               const SizedBox(height: 10),
               Container(
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                     color: AppColors.textMuted,
                     borderRadius: BorderRadius.circular(2)),
@@ -1082,9 +1180,8 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Nombre
-                        _Label('Nombre *'),
-                        SizedBox(height: 6),
+                        const _Label('Nombre *'),
+                        const SizedBox(height: 6),
                         TextFormField(
                           controller: _nameCtrl,
                           style: TextStyle(color: context.colorTextPrimary),
@@ -1093,9 +1190,8 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
                               v == null || v.trim().isEmpty ? 'Requerido' : null,
                         ),
                         const SizedBox(height: 14),
-                        // Tipo
-                        _Label('Tipo *'),
-                        SizedBox(height: 6),
+                        const _Label('Tipo *'),
+                        const SizedBox(height: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           decoration: BoxDecoration(
@@ -1119,16 +1215,15 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
                                     value: 'fortalecimiento',
                                     child: Text('Fortalecimiento')),
                               ],
-                              onChanged: (v) =>
-                                  setState(() => _type = v!),
+                              onChanged: (v) => setState(() => _type = v!),
                             ),
                           ),
                         ),
                         const SizedBox(height: 14),
-                        // Pasos
                         Row(
                           children: [
-                            const Expanded(child: _Label('Pasos / instrucciones')),
+                            const Expanded(
+                                child: _Label('Pasos / instrucciones')),
                             TextButton.icon(
                               onPressed: () => setState(
                                   () => _stepCtrl.add(TextEditingController())),
@@ -1152,7 +1247,8 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
                               child: Row(
                                 children: [
                                   Container(
-                                    width: 24, height: 24,
+                                    width: 24,
+                                    height: 24,
                                     margin: const EdgeInsets.only(right: 8),
                                     decoration: BoxDecoration(
                                       color: AppColors.accentPrimary
@@ -1173,8 +1269,8 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
                                       style: const TextStyle(
                                           color: AppColors.textPrimary,
                                           fontSize: 13),
-                                      decoration:
-                                          _deco('Describe el paso ${entry.key + 1}...'),
+                                      decoration: _deco(
+                                          'Describe el paso ${entry.key + 1}...'),
                                     ),
                                   ),
                                   if (_stepCtrl.length > 1) ...[
@@ -1194,24 +1290,23 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
                               ),
                             )),
                         const SizedBox(height: 14),
-                        // Beneficios
-                        _Label('Beneficios'),
-                        SizedBox(height: 6),
+                        const _Label('Beneficios'),
+                        const SizedBox(height: 6),
                         TextFormField(
                           controller: _benefitsCtrl,
                           style: TextStyle(color: context.colorTextPrimary),
-                          decoration: _deco('Ej. Mejora la estabilidad del hombro'),
+                          decoration:
+                              _deco('Ej. Mejora la estabilidad del hombro'),
                           maxLines: 2,
                         ),
                         const SizedBox(height: 14),
-                        // Cuándo usarlo
-                        _Label('Cuándo usarlo'),
-                        SizedBox(height: 6),
+                        const _Label('Cuándo usarlo'),
+                        const SizedBox(height: 6),
                         TextFormField(
                           controller: _whenToUseCtrl,
                           style: TextStyle(color: context.colorTextPrimary),
-                          decoration:
-                              _deco('Ej. Antes de entrenar pecho o espalda'),
+                          decoration: _deco(
+                              'Ej. Antes de entrenar pecho o espalda'),
                           maxLines: 2,
                         ),
                         if (_error != null) ...[
@@ -1232,11 +1327,13 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
                           ),
                           child: _saving
                               ? const SizedBox(
-                                  width: 20, height: 20,
+                                  width: 20,
+                                  height: 20,
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2, color: Colors.white))
                               : const Text('Crear ejercicio',
-                                  style: TextStyle(fontWeight: FontWeight.w600)),
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w600)),
                         ),
                       ],
                     ),
@@ -1254,6 +1351,7 @@ class _CreateJointExerciseSheetState extends State<_CreateJointExerciseSheet> {
 class _Label extends StatelessWidget {
   final String text;
   const _Label(this.text);
+
   @override
   Widget build(BuildContext context) => Text(text,
       style: const TextStyle(
@@ -1261,6 +1359,3 @@ class _Label extends StatelessWidget {
           fontSize: 12,
           fontWeight: FontWeight.w600));
 }
-
-
-

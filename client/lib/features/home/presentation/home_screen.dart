@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/weight_utils.dart';
+import '../../../core/widgets/fade_slide.dart';
+import '../../../core/widgets/gym_icon.dart';
 import '../../../features/profile/data/user_preferences_service.dart';
 import '../../../features/profile/providers/weight_unit_notifier.dart';
 import '../../../shared/providers/auth_provider.dart';
@@ -93,17 +96,17 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                _QuickActions(isAdmin: isAdmin, isProfessor: isProfessor),
+                FadeSlide(delay: const Duration(milliseconds: 80), child: _QuickActions(isAdmin: isAdmin, isProfessor: isProfessor)),
                 const SizedBox(height: 28),
-                _TodaySession(),
+                FadeSlide(delay: const Duration(milliseconds: 160), child: _TodaySession()),
                 const SizedBox(height: 28),
-                const _PersonalRecords(),
+                FadeSlide(delay: const Duration(milliseconds: 240), child: const _PersonalRecords()),
                 const SizedBox(height: 28),
-                _NextEvent(),
+                FadeSlide(delay: const Duration(milliseconds: 320), child: _NextEvent()),
                 const SizedBox(height: 28),
-                _DiscoverMore(isAdmin: isAdmin),
+                FadeSlide(delay: const Duration(milliseconds: 400), child: _DiscoverMore(isAdmin: isAdmin)),
                 const SizedBox(height: 28),
-                _LogoutTile(onLogout: () => auth.logout()),
+                FadeSlide(delay: const Duration(milliseconds: 480), child: _LogoutTile(onLogout: () => auth.logout())),
               ]),
             ),
           ),
@@ -157,101 +160,177 @@ class _Header extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF3D3899), Color(0xFF6C63FF), Color(0xFF8A84FF)],
+          colors: [Color(0xFF010c20), Color(0xFF012848)],
         ),
       ),
       child: SafeArea(
         bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // Faded shield — decorative right side
+            Positioned(
+              right: -10,
+              top: -8,
+              child: Opacity(
+                opacity: 0.07,
+                child: SvgPicture.asset('assets/icons/shield_logo.svg', width: 140),
+              ),
+            ),
+            // Wave decoration — bottom
+            Positioned(
+              right: 0,
+              bottom: 44,
+              child: CustomPaint(
+                size: const Size(220, 16),
+                painter: _HomeWavePainter(opacity: 0.22),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              bottom: 28,
+              child: CustomPaint(
+                size: const Size(160, 12),
+                painter: _HomeWavePainter(opacity: 0.12),
+              ),
+            ),
+            // Content
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '$dayName, $dateStr',
-                          style: const TextStyle(
-                            color: Color(0xFFD0CDFF),
-                            fontSize: 13,
-                          ),
+                  // Wordmark row
+                  Row(
+                    children: [
+                      SvgPicture.asset('assets/icons/shield_logo.svg', width: 32, height: 32),
+                      const SizedBox(width: 10),
+                      RichText(
+                        text: const TextSpan(
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                          children: [
+                            TextSpan(text: 'Gym', style: TextStyle(color: Colors.white)),
+                            TextSpan(text: 'UBB', style: TextStyle(color: Color(0xFFF9B214))),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '¡Hola, $firstName!',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Bienvenido al Gimnasio UBB',
-                          style: TextStyle(color: Color(0xFFD0CDFF), fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => context.push('/notifications'),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(30),
-                            borderRadius: BorderRadius.circular(22),
-                          ),
-                          child: const Icon(Icons.notifications_outlined,
-                              color: Colors.white, size: 20),
-                        ),
-                        if (unreadCount > 0)
-                          Positioned(
-                            top: -2,
-                            right: -2,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: AppColors.accentSecondary,
-                                shape: BoxShape.circle,
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => context.push('/notifications'),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(25),
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                              child: Text(
-                                unreadCount > 99 ? '99+' : '$unreadCount',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold),
-                                textAlign: TextAlign.center,
-                              ),
+                              child: Center(child: GymIcon('bell', size: 19, color: Colors.white)),
                             ),
-                          ),
-                      ],
+                            if (unreadCount > 0)
+                              Positioned(
+                                top: -2,
+                                right: -2,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.accentSecondary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                                  child: Text(
+                                    unreadCount > 99 ? '99+' : '$unreadCount',
+                                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'UNIVERSIDAD DEL BÍO-BÍO',
+                    style: TextStyle(
+                      color: Color(0xFF4D9FFF),
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.2,
                     ),
+                  ),
+                  const SizedBox(height: 14),
+                  // Greeting
+                  Text(
+                    '$dayName, $dateStr',
+                    style: const TextStyle(color: Color(0xFF6B9ED8), fontSize: 12),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '¡Hola, $firstName!',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(child: _StatCard(icon: Icons.calendar_month_outlined, label: 'Este mes', value: monthWorkouts, unit: 'entrenamientos')),
+                      const SizedBox(width: 12),
+                      Expanded(child: _StatCard(icon: Icons.local_fire_department_outlined, label: 'Racha actual', value: currentStreak, unit: 'días seguidos 🔥', iconColor: const Color(0xFFFFB347))),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(child: _StatCard(icon: Icons.calendar_month_outlined, label: 'Este mes', value: monthWorkouts, unit: 'entrenamientos')),
-                  const SizedBox(width: 12),
-                  Expanded(child: _StatCard(icon: Icons.local_fire_department_outlined, label: 'Racha actual', value: currentStreak, unit: 'días seguidos 🔥', iconColor: const Color(0xFFFFB347))),
-                ],
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _HomeWavePainter extends CustomPainter {
+  const _HomeWavePainter({required this.opacity});
+  final double opacity;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round;
+    final path = Path();
+    final w = size.width;
+    final h = size.height;
+    path.moveTo(0, h * 0.5);
+    for (var i = 0; i < 3; i++) {
+      final seg = w / 3;
+      final x1 = seg * i + seg * 0.25;
+      final x3 = seg * i + seg * 0.75;
+      final x4 = seg * (i + 1);
+      final yUp = i.isEven ? 0.0 : h;
+      final yDown = i.isEven ? h : 0.0;
+      path.cubicTo(x1, yUp, x3, yDown, x4, h * 0.5);
+    }
+    final shader = LinearGradient(
+      colors: [
+        Colors.transparent,
+        const Color(0xFFF9B214).withAlpha((opacity * 255).round()),
+      ],
+    ).createShader(Rect.fromLTWH(0, 0, w, h));
+    paint.shader = shader;
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_HomeWavePainter old) => old.opacity != opacity;
 }
 
 class _StatCard extends StatelessWidget {
@@ -307,13 +386,13 @@ class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      _QuickAction(icon: Icons.fitness_center, label: 'Ejercicios', color: const Color(0xFF6C63FF), route: '/exercises'),
-      _QuickAction(icon: Icons.emoji_events_outlined, label: 'Rankings', color: const Color(0xFFFFB347), route: '/rankings'),
-      _QuickAction(icon: Icons.menu_book_outlined, label: 'Educación', color: const Color(0xFF8B5CF6), route: '/education'),
-      _QuickAction(icon: Icons.calendar_today_outlined, label: 'Eventos', color: const Color(0xFFFFB347), route: '/events'),
+      _QuickAction(iconName: 'dumbbell', label: 'Ejercicios', color: AppColors.accentPrimary, route: '/exercises'),
+      _QuickAction(iconName: 'trophy', label: 'Rankings', color: const Color(0xFFFFB347), route: '/rankings'),
+      _QuickAction(iconName: 'article', label: 'Educación', color: const Color(0xFF8B5CF6), route: '/education'),
+      _QuickAction(iconName: 'calendar', label: 'Eventos', color: AppColors.ubbBlue, route: '/events'),
       if (isAdmin) ...[
-        _QuickAction(icon: Icons.manage_accounts, label: 'Usuarios', color: const Color(0xFFFF6B6B), route: '/admin/users'),
-        _QuickAction(icon: Icons.school_outlined, label: 'Carreras', color: const Color(0xFF4ECDC4), route: '/admin/careers'),
+        _QuickAction(iconName: 'users', label: 'Usuarios', color: AppColors.accentSecondary, route: '/admin/users'),
+        _QuickAction(iconName: 'gradcap', label: 'Carreras', color: AppColors.accentGreen, route: '/admin/careers'),
       ],
     ];
 
@@ -340,8 +419,8 @@ class _QuickActions extends StatelessWidget {
 }
 
 class _QuickAction {
-  const _QuickAction({required this.icon, required this.label, required this.color, required this.route});
-  final IconData icon;
+  const _QuickAction({required this.iconName, required this.label, required this.color, required this.route});
+  final String iconName;
   final String label;
   final Color color;
   final String? route;
@@ -379,7 +458,7 @@ class _QuickActionTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: action.color.withAlpha(60)),
             ),
-            child: Icon(action.icon, color: action.color, size: 24),
+            child: Center(child: GymIcon(action.iconName, size: 24, color: action.color)),
           ),
           SizedBox(height: 6),
           Text(
@@ -974,8 +1053,8 @@ class _DiscoverMore extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      _DiscoverItem(icon: Icons.menu_book_outlined, label: 'Educación y salud', sub: 'Artículos y consejos', color: const Color(0xFF8B5CF6), route: '/education'),
-      _DiscoverItem(icon: Icons.calendar_today_outlined, label: 'Eventos UBB', sub: 'Competencias y talleres', color: const Color(0xFFFFB347), route: '/events'),
+      _DiscoverItem(iconName: 'article', label: 'Educación y salud', sub: 'Artículos y consejos', color: const Color(0xFF8B5CF6), route: '/education'),
+      _DiscoverItem(iconName: 'calendar', label: 'Eventos UBB', sub: 'Competencias y talleres', color: AppColors.ubbBlue, route: '/events'),
     ];
 
     return Column(
@@ -993,8 +1072,8 @@ class _DiscoverMore extends StatelessWidget {
 }
 
 class _DiscoverItem {
-  const _DiscoverItem({required this.icon, required this.label, required this.sub, required this.color, required this.route});
-  final IconData icon;
+  const _DiscoverItem({required this.iconName, required this.label, required this.sub, required this.color, required this.route});
+  final String iconName;
   final String label;
   final String sub;
   final Color color;
@@ -1031,7 +1110,7 @@ class _DiscoverTile extends StatelessWidget {
                 color: item.color.withAlpha(25),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(item.icon, color: item.color, size: 20),
+              child: Center(child: GymIcon(item.iconName, size: 20, color: item.color)),
             ),
             SizedBox(width: 14),
             Expanded(

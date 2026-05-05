@@ -45,10 +45,41 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
           weekStatus = await _workoutService.getWeekStatus(routineId);
         } catch (_) {}
       }
-      setState(() { _routine = r; _weekStatus = weekStatus; _loading = false; });
+      final initialDay = _pickTodayOrClosest(
+        (r['days'] as List? ?? []).cast<Map<String, dynamic>>(),
+      );
+      setState(() {
+        _routine = r;
+        _weekStatus = weekStatus;
+        _expandedDay = initialDay;
+        _loading = false;
+      });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
     }
+  }
+
+  Future<void> _refresh() async => _load();
+
+  /// Devuelve el índice del día cuyo `dayName` coincida con el weekday actual,
+  /// o el más cercano hacia adelante (envolviendo de Domingo a Lunes). Si la
+  /// rutina no tiene días, retorna 0.
+  int _pickTodayOrClosest(List<Map<String, dynamic>> days) {
+    if (days.isEmpty) return 0;
+    final today = DateTime.now().weekday; // 1..7
+    var bestIdx = 0;
+    var bestDelta = 8;
+    for (var i = 0; i < days.length; i++) {
+      final wd = _kDayWeekday[days[i]['dayName'] as String? ?? ''];
+      if (wd == null) continue;
+      if (wd == today) return i; // match exacto
+      final delta = (wd - today + 7) % 7; // hacia adelante
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
   }
 
   @override
@@ -90,8 +121,13 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
     );
     final avgExercises = days.isEmpty ? 0 : (totalExercises / days.length).round();
 
-    return CustomScrollView(
-      slivers: [
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      color: AppColors.accentPrimary,
+      backgroundColor: context.colorBgSecondary,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
         // ── Hero header ──
         SliverToBoxAdapter(
           child: _Header(
@@ -150,6 +186,7 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
           ),
         ),
       ],
+      ),
     );
   }
 }
@@ -500,19 +537,40 @@ class _StartWorkoutButton extends StatelessWidget {
   void _onPressed(BuildContext context, Map<String, dynamic>? selectedDay) {
     if (selectedDay == null) { _navigate(context, null); return; }
 
-    final dayId     = selectedDay['id'] as String? ?? '';
-    final dayName   = selectedDay['dayName'] as String? ?? '';
-    final status    = weekStatus[dayId];
+    final dayId   = selectedDay['id'] as String? ?? '';
+    final dayName = selectedDay['dayName'] as String? ?? '';
+    final status  = weekStatus[dayId];
 
-    // Día ya completado esta semana → bloqueado
+    // Día ya completado → confirmar antes de repetir
     if (status == 'completed') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$dayName ya fue completado esta semana 💪'),
-          backgroundColor: AppColors.accentGreen,
-          behavior: SnackBarBehavior.floating,
+      showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.bgSecondary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            '¿Repetir entrenamiento?',
+            style: TextStyle(color: ctx.colorTextPrimary, fontSize: 17, fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            'Ya completaste $dayName esta semana. Si vuelves a entrenarlo se sobreescribirá el progreso de hoy.',
+            style: TextStyle(color: ctx.colorTextSecondary, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancelar', style: TextStyle(color: ctx.colorTextMuted)),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.accentPrimary),
+              child: const Text('Volver a entrenar'),
+            ),
+          ],
         ),
-      );
+      ).then((confirmed) {
+        if (confirmed == true && context.mounted) _navigate(context, selectedDay);
+      });
       return;
     }
 
@@ -574,15 +632,15 @@ class _StartWorkoutButton extends StatelessWidget {
     return Column(
       children: [
         FilledButton.icon(
-          onPressed: isCompleted ? null : () => _onPressed(context, selectedDay),
+          onPressed: () => _onPressed(context, selectedDay),
           icon: Icon(isCompleted
-              ? Icons.check_circle_outline_rounded
+              ? Icons.replay_rounded
               : isPartial
                   ? Icons.replay_rounded
                   : Icons.play_arrow_rounded),
           label: Text(
             isCompleted
-                ? '$dayName ya completado esta semana'
+                ? '¡Descansa! Ya entrenaste $dayName'
                 : isPartial
                     ? 'Completar ${dayName.isNotEmpty ? dayName : 'entrenamiento'}'
                     : selectedDay != null
@@ -591,13 +649,11 @@ class _StartWorkoutButton extends StatelessWidget {
           ),
           style: FilledButton.styleFrom(
             backgroundColor: isCompleted
-                ? AppColors.accentGreen.withAlpha(120)
+                ? AppColors.accentGreen.withAlpha(60)
                 : isPartial
                     ? const Color(0xFFFFB347)
                     : AppColors.accentPrimary,
             foregroundColor: Colors.white,
-            disabledBackgroundColor: AppColors.accentGreen.withAlpha(80),
-            disabledForegroundColor: Colors.white70,
             minimumSize: const Size(double.infinity, 52),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -606,7 +662,7 @@ class _StartWorkoutButton extends StatelessWidget {
         if (isCompleted) ...[
           const SizedBox(height: 8),
           Text(
-            'Vuelve la próxima semana o elige otro día',
+            'Toca para repetir si quieres volver a entrenarlo',
             style: TextStyle(color: context.colorTextMuted, fontSize: 12),
             textAlign: TextAlign.center,
           ),
@@ -629,6 +685,9 @@ class _ExerciseRow extends StatelessWidget {
     final sets = exercise['sets'] as int? ?? 3;
     final reps = exercise['reps'] as String? ?? '8-12';
     final rest = exercise['restSeconds'] as int? ?? 90;
+    final isIso = (exercise['exerciseType'] as String? ?? 'dinamico') == 'isometrico';
+    final duration = (exercise['durationSeconds'] as int?) ?? 30;
+    final badge = isIso ? '$sets×${duration}s' : '$sets×$reps';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -653,7 +712,27 @@ class _ExerciseRow extends StatelessWidget {
           ),
           SizedBox(width: 12),
           Expanded(
-            child: Text(name, style: TextStyle(color: context.colorTextPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(name,
+                      style: TextStyle(color: context.colorTextPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis),
+                ),
+                if (isIso) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentGreen.withAlpha(30),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text('⏱',
+                        style: TextStyle(fontSize: 9, color: AppColors.accentGreen, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ],
+            ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -661,7 +740,7 @@ class _ExerciseRow extends StatelessWidget {
               color: context.colorBgTertiary,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text('$sets×$reps', style: TextStyle(color: context.colorTextSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+            child: Text(badge, style: TextStyle(color: context.colorTextSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 8),
           Row(

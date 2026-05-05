@@ -142,6 +142,23 @@ class WorkoutService {
     return raw.map((k, v) => MapEntry(k, v as String));
   }
 
+  /// Calendario de actividad entre dos fechas (inclusive).
+  /// Retorna { "YYYY-MM-DD": "completed" | "partial" | "free" | "missed" | "scheduled" }.
+  /// Días sin entrada → asumir 'rest'.
+  Future<Map<String, String>> getCalendar({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    String iso(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    final uri = Uri.parse('${ApiConstants.baseUrl}/api/v1/workout/calendar')
+        .replace(queryParameters: {'from': iso(from), 'to': iso(to)});
+    final res = await http.get(uri, headers: await _authHeaders());
+    final data = _unwrap(res);
+    final raw = data['days'] as Map<String, dynamic>? ?? {};
+    return raw.map((k, v) => MapEntry(k, v as String));
+  }
+
   /// Devuelve el historial de sesiones finalizadas.
   Future<Map<String, dynamic>> getHistory({int limit = 20, int offset = 0}) async {
     final uri = Uri.parse(

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/weight_utils.dart';
+import '../../../core/widgets/section_banner.dart';
 import '../../../features/profile/providers/weight_unit_notifier.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/services/rankings_service.dart';
@@ -38,36 +39,49 @@ class _RankingsScreenState extends State<RankingsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.colorBgPrimary,
-      appBar: AppBar(
-        title: const Text('Rankings'),
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabs,
-          labelColor: AppColors.accentPrimary,
-          unselectedLabelColor: context.colorTextSecondary,
-          indicatorColor: AppColors.accentPrimary,
-          indicatorSize: TabBarIndicatorSize.label,
-          tabs: [
-            const Tab(text: 'Récords'),
-            const Tab(text: 'Leaderboard'),
-            const Tab(text: 'Wilks'),
-            if (_isPrivileged) const Tab(text: 'Revisar'),
-          ],
-        ),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/rankings/postulate'),
         backgroundColor: AppColors.accentPrimary,
         icon: const Icon(Icons.emoji_events_rounded, color: Colors.white),
         label: const Text('Postular', style: TextStyle(color: Colors.white)),
       ),
-      body: TabBarView(
-        controller: _tabs,
+      body: Column(
         children: [
-          const _RecordsTab(),
-          const _LeaderboardTab(),
-          const _WilksTab(),
-          if (_isPrivileged) const _ReviewTab(),
+          const SectionBanner(
+            title: 'Rankings',
+            subtitle: '¿Quién lidera el GymUBB?',
+            label: 'Tabla de posiciones',
+            accentColor: Color(0xFFF9B214),
+            iconName: 'trophy',
+            gradientColors: [Color(0xFF140c00), Color(0xFF281800)],
+          ),
+          Container(
+            color: context.colorBgSecondary,
+            child: TabBar(
+              controller: _tabs,
+              labelColor: AppColors.accentPrimary,
+              unselectedLabelColor: context.colorTextSecondary,
+              indicatorColor: AppColors.accentPrimary,
+              indicatorSize: TabBarIndicatorSize.label,
+              tabs: [
+                const Tab(text: 'Récords'),
+                const Tab(text: 'Leaderboard'),
+                const Tab(text: 'Wilks'),
+                if (_isPrivileged) const Tab(text: 'Revisar'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                const _RecordsTab(),
+                const _LeaderboardTab(),
+                const _WilksTab(),
+                if (_isPrivileged) const _ReviewTab(),
+              ],
+            ),
+          ),
         ],
       ),
     );

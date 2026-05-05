@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../hiit/data/hiit_models.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../../core/constants/api_constants.dart';
@@ -214,6 +215,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
 
     final exerciseType = e['exerciseType'] as String? ?? 'dinamico';
     final isIsometric = exerciseType == 'isometrico';
+    final isCalistenia = exerciseType == 'calistenia';
     final displayGroup =
         BodyMapData.muscleGroupDisplayName[muscleGroup] ?? muscleGroup ?? '';
     final muscleColor =
@@ -311,6 +313,13 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                             const _Badge(
                               label: 'Isométrico',
                               color: Color(0xFF818cf8),
+                            ),
+                          ],
+                          if (isCalistenia) ...[
+                            const SizedBox(width: 8),
+                            const _Badge(
+                              label: 'Calistenia',
+                              color: Color(0xFF4ECDC4),
                             ),
                           ],
                           if (equipment != null && equipment.isNotEmpty) ...[
@@ -594,6 +603,33 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                   ),
                   const SizedBox(height: 24),
                 ],
+
+                // ── Agregar a HIIT ────────────────────────────────────────
+                FilledButton.icon(
+                  onPressed: () {
+                    final rawUrl = e['imageUrl'] as String?;
+                    final fullUrl = rawUrl == null || rawUrl.isEmpty
+                        ? null
+                        : rawUrl.startsWith('http')
+                            ? rawUrl
+                            : '${ApiConstants.baseUrl}$rawUrl';
+                    context.go('/hiit/config', extra: {
+                      'mode': HiitMode.tabata,
+                      'exercise': {
+                        'id': e['id'],
+                        'name': e['name'],
+                        'imageUrl': fullUrl,
+                      },
+                    });
+                  },
+                  icon: const Icon(Icons.timer_outlined),
+                  label: const Text('Agregar a HIIT'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                ),
+                const SizedBox(height: 32),
               ],
             ),
           ),
@@ -750,6 +786,7 @@ class _EditExerciseDialogState extends State<_EditExerciseDialog> {
   late String _difficulty;
   late int _defaultSets;
   late bool _isIsometric;
+  late bool _isCalistenia;
   late bool _isRankeable;
 
   bool _saving = false;
@@ -767,7 +804,9 @@ class _EditExerciseDialogState extends State<_EditExerciseDialog> {
   void initState() {
     super.initState();
     final e = widget.exercise;
-    _isIsometric = (e['exerciseType'] as String? ?? 'dinamico') == 'isometrico';
+    final exType = e['exerciseType'] as String? ?? 'dinamico';
+    _isIsometric = exType == 'isometrico';
+    _isCalistenia = exType == 'calistenia';
     _isRankeable = e['isRankeable'] as bool? ?? false;
     _muscleGroup = e['muscleGroup'] as String? ?? 'pecho';
     _difficulty = e['difficulty'] as String? ?? 'principiante';
@@ -804,7 +843,9 @@ class _EditExerciseDialogState extends State<_EditExerciseDialog> {
         'defaultSets': _defaultSets,
         'videoUrl': _videoUrlCtrl.text.trim(),
         'safetyNotes': _safetyCtrl.text.trim(),
-        'exerciseType': _isIsometric ? 'isometrico' : 'dinamico',
+        'exerciseType': _isIsometric
+            ? 'isometrico'
+            : (_isCalistenia ? 'calistenia' : 'dinamico'),
         'isRankeable': _isRankeable,
       };
       if (_isIsometric) {
@@ -996,11 +1037,27 @@ class _EditExerciseDialogState extends State<_EditExerciseDialog> {
                       // Toggle isométrico
                       _buildToggle(
                         value: _isIsometric,
-                        onChanged: (v) => setState(() => _isIsometric = v),
+                        onChanged: (v) => setState(() {
+                          _isIsometric = v;
+                          if (v) _isCalistenia = false;
+                        }),
                         color: const Color(0xFF818cf8),
                         icon: Icons.timer_outlined,
                         title: 'Ejercicio isométrico',
                         subtitle: 'Se mide por tiempo (segundos), no por kg y repeticiones',
+                      ),
+                      const SizedBox(height: 12),
+                      // Toggle calistenia
+                      _buildToggle(
+                        value: _isCalistenia,
+                        onChanged: (v) => setState(() {
+                          _isCalistenia = v;
+                          if (v) _isIsometric = false;
+                        }),
+                        color: const Color(0xFF4ECDC4),
+                        icon: Icons.accessibility_new_rounded,
+                        title: 'Ejercicio de peso corporal',
+                        subtitle: 'Calistenia: el volumen incluye el peso corporal + lastre opcional',
                       ),
                       const SizedBox(height: 12),
                       // Toggle rankeable

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/section_banner.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/services/events_service.dart';
 
@@ -72,22 +73,6 @@ class _EventsScreenState extends State<EventsScreen>
 
     return Scaffold(
       backgroundColor: context.colorBgPrimary,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Eventos'),
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabs,
-          labelColor: AppColors.accentPrimary,
-          unselectedLabelColor: AppColors.textSecondary,
-          indicatorColor: AppColors.accentPrimary,
-          indicatorSize: TabBarIndicatorSize.label,
-          tabs: const [
-            Tab(text: 'Próximos'),
-            Tab(text: 'Mis intereses'),
-          ],
-        ),
-      ),
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: () => _showEventForm(context),
@@ -97,11 +82,39 @@ class _EventsScreenState extends State<EventsScreen>
                   style: TextStyle(color: Colors.white)),
             )
           : null,
-      body: TabBarView(
-        controller: _tabs,
+      body: Column(
         children: [
-          _UpcomingTab(key: _upcomingKey, service: _service),
-          _InterestsTab(service: _service),
+          const SectionBanner(
+            title: 'Eventos',
+            subtitle: 'Pausas activas · Torneos · Charlas',
+            label: 'Campus UBB',
+            accentColor: Color(0xFF4D9FFF),
+            iconName: 'calendar',
+            gradientColors: [Color(0xFF010e28), Color(0xFF002040)],
+          ),
+          Container(
+            color: context.colorBgSecondary,
+            child: TabBar(
+              controller: _tabs,
+              labelColor: AppColors.accentPrimary,
+              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: AppColors.accentPrimary,
+              indicatorSize: TabBarIndicatorSize.label,
+              tabs: const [
+                Tab(text: 'Próximos'),
+                Tab(text: 'Mis intereses'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                _UpcomingTab(key: _upcomingKey, service: _service),
+                _InterestsTab(service: _service),
+              ],
+            ),
+          ),
         ],
       ),
     );
